@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Arkan — design tokens
+   Source of truth: "Arkan — Brand Guide_En.md".
+   Contrast ratios noted below are measured (WCAG 2.1 relative luminance),
+   not estimated. Read them before introducing a new colour pairing.
+   ========================================================================== */
+
+@theme {
+  /* -- Brand palette ------------------------------------------------------ */
+  --color-pine: #143a32; /* primary   — dark surfaces, header, footer, CTA   */
+  --color-brass: #b5853a; /* accent    — rules, icons, numerals. See warning */
+  --color-bone: #f7f3ec; /* light base — page background                    */
+  --color-sand: #e7decf; /* secondary — cards, hairlines, alternate bands    */
+  --color-ink: #15201c; /* primary text on light                            */
+  --color-slate: #5a5f5b; /* secondary text                                  */
+
+  /* Error. The brand guide defines no error colour; this is a deep brick red
+     chosen to sit inside the warm palette. 7.56:1 on white, 6.84:1 on bone,
+     5.67:1 on sand — AA everywhere the form can render it. */
+  --color-clay: #9b2c22;
+
+  /* Success reuses Pine. No new brand colour is invented. */
+
+  /* -- Typography --------------------------------------------------------- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+
+  /* Brand guide desktop scale: H1 48 / H2 32 / H3 24 / body 17 / caption 14.
+     Fluid between a 375px and a 1200px viewport so mobile never overshoots. */
+  --text-h1: clamp(2rem, 1.5455rem + 1.9394vw, 3rem);
+  --text-h1--line-height: 1.15;
+  --text-h1--letter-spacing: -0.022em;
+  --text-h1--font-weight: 700;
+
+  --text-h2: clamp(1.625rem, 1.4545rem + 0.7273vw, 2rem);
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.018em;
+  --text-h2--font-weight: 700;
+
+  --text-h3: clamp(1.375rem, 1.3182rem + 0.2424vw, 1.5rem);
+  --text-h3--line-height: 1.35;
+  --text-h3--letter-spacing: -0.012em;
+  --text-h3--font-weight: 600;
+
+  --text-body: 1.0625rem; /* 17px */
+  --text-body--line-height: 1.8;
+
+  --text-caption: 0.875rem; /* 14px */
+  --text-caption--line-height: 1.6;
+
+  /* Eyebrow / section label */
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.14em;
+  --text-eyebrow--font-weight: 600;
+
+  /* -- Shape -------------------------------------------------------------- */
+  --radius-card: 12px;
+  --radius-btn: 8px;
+
+  /* -- Elevation ---------------------------------------------------------- */
+  /* "Extremely subtle and low-contrast" per the brand guide. Tinted with the
+     brand's own ink rather than pure black so shadows stay warm. */
+  --shadow-card: 0 1px 2px rgb(21 32 28 / 0.04);
+  --shadow-raised: 0 2px 8px rgb(21 32 28 / 0.06);
+
+  /* -- Motion ------------------------------------------------------------- */
+  /* ui-ux-pro-max motion.csv, Subtle tier: 150-200ms hovers, 300-400ms reveals */
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Sticky header height — consumed by scroll-padding so anchored sections and
+   keyboard focus are never hidden behind it (WCAG 2.2 Focus Not Obscured). */
+:root {
+  --header-h: 4rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --header-h: 4.5rem;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+html {
+  scroll-padding-top: calc(var(--header-h) + 1.5rem);
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  background-color: var(--color-bone);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: var(--color-pine);
+  color: var(--color-bone);
+}
+
+/* Statistics and any figure that should align in a column.
+   The brand guide requires tabular figures for numeric data. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ==========================================================================
+   Focus
+   --------------------------------------------------------------------------
+   Pine on Bone measures 11.29:1, so a Pine ring is unambiguous on every light
+   surface. Brass is NOT usable here: Brass on Bone is 2.98:1, below the 3:1
+   floor for non-text contrast. On Pine surfaces the ring inverts to Bone.
+   ========================================================================== */
+
+:focus-visible {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.on-pine :focus-visible {
+  outline-color: var(--color-bone);
+}
+
+/* ==========================================================================
+   Scroll reveal
+   --------------------------------------------------------------------------
+   Opt-IN, not opt-out. Without JavaScript the `js` class is never added, so
+   every section renders fully visible for readers and crawlers alike.
+   ========================================================================== */
+
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 360ms var(--ease-out-soft),
+    transform 360ms var(--ease-out-soft);
+}
+
+.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
