@@ -2,19 +2,8 @@
 
 import { consultation } from "@/lib/content";
 import { notifyNewLead, saveLead, toLeadRow } from "@/lib/server-leads";
-import {
-  consultationSchema,
-  toFieldErrors,
-  type FieldErrors,
-} from "@/lib/validation";
-
-export type FormState = {
-  status: "idle" | "invalid" | "error" | "success";
-  fieldErrors?: FieldErrors;
-  message?: string;
-};
-
-export const initialFormState: FormState = { status: "idle" };
+import type { FormState } from "@/lib/form-state";
+import { consultationSchema, toFieldErrors } from "@/lib/validation";
 
 /**
  * Handles a consultation request.

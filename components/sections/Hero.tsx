@@ -45,9 +45,10 @@ export function Hero() {
             </ButtonLink>
           </div>
 
-          <p className="mt-12 border-t border-sand pt-8 text-caption text-slate">
+          <p className="mt-10 border-t border-sand pt-6 text-caption text-slate">
             {hero.trustLine}
-          </p>        </div>
+          </p>
+        </div>
 
         <div className="relative aspect-[16/11] overflow-hidden rounded-card bg-sand lg:aspect-[4/3]">
           <Image

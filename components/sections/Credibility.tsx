@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { PillarMark } from "@/components/ui/PillarMark";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { credibility } from "@/lib/content";
 
@@ -38,9 +37,8 @@ export function Credibility() {
         </dl>
 
         <div className="mt-16 grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          <div data-reveal>
-            <PillarMark active={0} className="h-6 w-7" />
-            <h3 className="mt-6 text-h3 text-pine">
+          <div data-reveal className="border-t border-sand pt-8">
+            <h3 className="text-h3 text-pine">
               {credibility.founder.name}
             </h3>
             <p className="text-caption text-slate">{credibility.founder.role}</p>

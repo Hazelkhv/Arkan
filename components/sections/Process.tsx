@@ -23,7 +23,7 @@ export function Process() {
           data-reveal
         />
 
-        <ol className="mt-16 grid md:grid-cols-4">
+        <ol className="mt-16 ml-5 grid md:ml-0 md:grid-cols-4">
           {process.steps.map((step, index) => (
             <li
               key={step.title}

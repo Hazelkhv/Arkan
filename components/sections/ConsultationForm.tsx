@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { initialFormState, submitConsultation } from "@/app/actions";
+import { submitConsultation } from "@/app/actions";
+import { initialFormState } from "@/lib/form-state";
 import {
   SelectField,
   TextAreaField,
@@ -9,7 +10,7 @@ import {
   fieldId,
 } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
-import { PillarMark } from "@/components/ui/PillarMark";
+import { PillarTile } from "@/components/ui/PillarMark";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { businessStages, consultation, contactTimes } from "@/lib/content";
 import {
@@ -58,17 +59,37 @@ export function ConsultationForm() {
   );
 
   const [values, setValues] = useState(EMPTY);
-  const [errors, setErrors] = useState<FieldErrors>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
-  // A rejected submit replaces the local errors and moves focus to the summary,
-  // so keyboard and screen reader users land on the explanation rather than
-  // being left at the bottom of the form wondering what happened.
+  // What the browser has decided about each field it has seen. A key is present
+  // once the field has been checked, and holds `undefined` when that check
+  // passed — which is how a field the visitor has just fixed overrides the
+  // error the server returned for it.
+  const [checked, setChecked] = useState<Partial<Record<FieldName, string>>>({});
+
+  const serverErrors =
+    state.status === "invalid" ? (state.fieldErrors ?? {}) : {};
+
+  // Errors are derived rather than copied into state, so the two sources can
+  // never drift apart: the browser's opinion wins for any field it has checked,
+  // and the server's stands for the rest.
+  const errors: FieldErrors = {};
+  for (const name of fieldOrder) {
+    const message = name in checked ? checked[name] : serverErrors[name];
+    if (message) errors[name] = message;
+  }
+
+  // Moving focus is a real side effect, so it belongs in an effect — but only
+  // the focus call does. A rejected submit lands keyboard and screen reader
+  // users on the explanation rather than at the bottom of the form.
   useEffect(() => {
-    if (state.status !== "invalid" || !state.fieldErrors) return;
-    setErrors(state.fieldErrors);
+    if (state.status !== "invalid") return;
     summaryRef.current?.focus();
   }, [state]);
+
+  function check(field: FieldName, value: string) {
+    return validateField(field, value, { ...values, [field]: value });
+  }
 
   function handleChange(name: string, value: string) {
     const field = name as FieldName;
@@ -76,28 +97,16 @@ export function ConsultationForm() {
 
     // Only re-check a field that is already showing an error, so a message
     // disappears the moment it is fixed but none appear while still typing.
-    setErrors((current) => {
-      if (!current[field]) return current;
-      if (validateField(field, value, { ...values, [field]: value })) {
-        return current;
-      }
+    if (!errors[field]) return;
 
-      const next = { ...current };
-      delete next[field];
-      return next;
-    });
+    const message = check(field, value);
+    if (!message) setChecked((current) => ({ ...current, [field]: undefined }));
   }
 
   function handleBlur(name: string, value: string) {
     const field = name as FieldName;
-    const message = validateField(field, value, { ...values, [field]: value });
-
-    setErrors((current) => {
-      const next = { ...current };
-      if (message) next[field] = message;
-      else delete next[field];
-      return next;
-    });
+    const message = check(field, value);
+    setChecked((current) => ({ ...current, [field]: message }));
   }
 
   const listedErrors = fieldOrder
@@ -118,7 +127,7 @@ export function ConsultationForm() {
       <section id="contact" className="bg-sand">
         <div className="mx-auto max-w-[75rem] px-5 py-20 sm:px-8 sm:py-24">
           <div className="mx-auto max-w-xl rounded-card border border-pine/15 bg-white p-8 text-center shadow-card sm:p-12">
-            <PillarMark active={3} className="mx-auto h-7 w-8" />
+            <PillarTile className="mx-auto h-11 w-11" />
             <h2 className="mt-6 text-h2 text-pine">
               {consultation.successTitle}
             </h2>
