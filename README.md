@@ -43,10 +43,33 @@ server log — configure Supabase before launch.
 
 ## Email notification
 
-No provider is wired up. `lib/notify.ts` marks the integration point and
-currently logs each new lead. Add an SDK there and read the key from an
-environment variable. Notification failures are caught and never fail a
-submission — the lead is already stored by the time it runs.
+New leads are emailed with [Resend](https://resend.com) from `lib/notify.ts`.
+
+The recipient is `LEAD_NOTIFICATION_TO` — the firm's own inbox, not the
+visitor's. Someone filling the form gets no email; the on-screen success message
+is their confirmation. Their address travels inside the notification body so the
+firm can reply.
+
+Set three variables to turn sending on:
+
+```bash
+RESEND_API_KEY=re_...            # https://resend.com/api-keys, sending access
+RESEND_FROM=onboarding@resend.dev
+LEAD_NOTIFICATION_TO=you@example.com
+```
+
+`onboarding@resend.dev` is Resend's shared test sender. It needs no DNS setup,
+but it only delivers to the address the Resend account was registered with — so
+point `LEAD_NOTIFICATION_TO` at that same address and it works immediately.
+That is enough for development and for a demo.
+
+For a real launch, verify the sending domain at https://resend.com/domains and
+switch to `RESEND_FROM="Arkan Website <website@arkan.co>"`. Only then can
+notifications reach an arbitrary inbox.
+
+Leave the two RESEND_ variables blank to skip sending entirely: the notification
+is written to the server log instead and the lead is still stored. Notification
+failures are caught and never fail a submission — the lead is saved first.
 
 ## Deploying
 
