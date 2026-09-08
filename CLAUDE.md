@@ -11,7 +11,7 @@ npm run start   # serve the production build
 npm run lint    # eslint (flat config, eslint-config-next core-web-vitals + typescript)
 ```
 
-There is no test framework in this project.
+There is no test framework in this project. `npm run build` is the check to run after changing code.
 
 ## What this is
 
@@ -19,9 +19,25 @@ A single-page marketing site for **Arkan**, a Tehran business-strategy advisory.
 
 Section order on the single page: Sticky Header → Hero → Services → Four Pillars → Process → Credibility → Consultation Form → Footer. Navigation is anchor links (`#services`, `#process`, `#about`, `#contact`) with smooth scrolling.
 
-### Build state
+## Architecture
 
-The foundation exists ([app/globals.css](app/globals.css), [lib/content.ts](lib/content.ts), [components/ui/PillarMark.tsx](components/ui/PillarMark.tsx), [components/site/Logo.tsx](components/site/Logo.tsx)); the page itself does not. [app/page.tsx](app/page.tsx) and [app/layout.tsx](app/layout.tsx) are still create-next-app boilerplate — default metadata, Geist fonts, Next.js/Vercel links, no `dir="ltr"`. `components/sections/`, `components/icons/` and `supabase/` are empty. Two mismatches to resolve when building the layout: `--font-sans` in globals.css expects a `--font-inter` variable that nothing defines yet, and the boilerplate hero markup references `/next.svg` and `/vercel.svg`, which are not in `public/`.
+[app/layout.tsx](app/layout.tsx) is the shell: `<html lang="en" dir="ltr">`, Inter via `next/font` (which is what defines the `--font-inter` that `--font-sans` reads), metadata and OpenGraph built from `seo`, ProfessionalService JSON-LD built from `company`, plus Header, Footer and `RevealController`. [app/page.tsx](app/page.tsx) composes the six section components in visitor order and does nothing else.
+
+Only four modules are Client Components — [components/site/Header.tsx](components/site/Header.tsx) (mobile menu), [components/sections/ConsultationForm.tsx](components/sections/ConsultationForm.tsx) (`useActionState`), [components/ui/Field.tsx](components/ui/Field.tsx) (per-field validation on blur) and [components/ui/Reveal.tsx](components/ui/Reveal.tsx) (one IntersectionObserver for the whole page). Everything else is a Server Component; keep it that way.
+
+### The lead pipeline
+
+Submit → `submitConsultation` in [app/actions.ts](app/actions.ts) → re-validate with the same zod schema the browser used → `toLeadRow` maps camelCase form fields onto snake_case columns → `saveLead` → `notifyNewLead`.
+
+That order is deliberate and load-bearing: the lead is stored **before** any notification is attempted, and a notification failure is caught and swallowed. A bounced email must never cost a lead, nor show an error to a visitor who filled the form in correctly.
+
+[lib/server-leads.ts](lib/server-leads.ts) is a barrel over that pipeline. It exists to make the server boundary visible at a glance: `lib/leads.ts` touches the filesystem and `lib/supabase.ts` reads secrets, so neither may ever be pulled into a client bundle. Import from `@/lib/server-leads`, not from those modules directly.
+
+[lib/form-state.ts](lib/form-state.ts) holds `FormState` and `initialFormState` because a `"use server"` module may only export async functions — the initial-state object cannot live in `app/actions.ts`.
+
+### Reading environment variables
+
+Use `||`, never `??`. `.env.example` tells the operator to leave unused values blank, and `""` is not nullish, so `??` lets a blank line shadow the fallback instead of deferring to it — silently disabling Supabase, or emptying the notification recipient. Both sites of this bug are fixed; do not reintroduce it.
 
 ## Source-of-truth documents
 
@@ -38,6 +54,8 @@ Three markdown files at the repo root drive every content and design decision. R
 ## Content layer
 
 Every user-facing string lives in [lib/content.ts](lib/content.ts) as `as const` exports (`company`, `nav`, `hero`, `services`, `pillars`, `process`, `credibility`, `consultation`, `businessStages`, `contactTimes`, `footer`, `seo`). Components import strings from there rather than hardcoding them — including SEO metadata, form labels, validation copy and success/error messages. Add new copy to this module first.
+
+`businessStages` and `contactTimes` are also the zod enums in [lib/validation.ts](lib/validation.ts), so editing those arrays changes both the select options and what the server will accept.
 
 ## Design tokens (Tailwind v4)
 
@@ -58,25 +76,33 @@ Type scale is fluid via `clamp()` between 375px and 1200px viewports (`text-h1`/
 
 ## Motion
 
-Scroll reveals are **opt-in**: `[data-reveal]` elements are only hidden once a `js` class is added to a wrapping element by client JS, so a no-JS render shows everything. Add `.is-visible` to reveal. `prefers-reduced-motion: reduce` disables reveals and flattens all transitions globally. Keep animation subtle — small fades and translates, nothing parallax or bouncing.
+Scroll reveals are **opt-in**: `[data-reveal]` elements are only hidden once a `js` class is added to `<html>` by `RevealController`, so a no-JS render shows everything. Elements already inside the viewport are marked `.is-visible` *before* that class lands, which is what avoids a flash of content disappearing and re-fading on load. `prefers-reduced-motion: reduce` skips the observer entirely and flattens all transitions globally. Keep animation subtle — small fades and translates, nothing parallax or bouncing.
 
 ## Consultation form & Supabase
 
-The form is the product. Fields (required marked): Full Name*, Phone*, Email, Business Name*, Industry, Business Stage* (select), biggest challenge* (textarea), Preferred Contact Time (select). Client-side validation with plain-language messages; loading → success → error states use the strings in `consultation`.
+The form is the product. Fields (required marked): Full Name*, Phone*, Email, Business Name*, Industry, Business Stage* (select), biggest challenge* (textarea), Preferred Contact Time (select). Client-side validation is a convenience; the server re-validates the same payload. Loading → success → error states use the strings in `consultation`.
 
-Submissions go to a Supabase `leads` table: `id uuid pk`, `created_at timestamptz`, `full_name`, `phone`, `email`, `business_name`, `industry`, `stage`, `challenge`, `preferred_time`, `status text default 'new'`. `zod` and `@supabase/supabase-js` are already installed; validate on the server route as well as the client. Credentials come from environment variables only — never hardcoded, service-role keys server-side only.
+Submissions go to the Supabase `leads` table defined in [supabase/schema.sql](supabase/schema.sql), which is already applied to the live project. RLS is enabled with a single insert-only policy for `anon` — there is deliberately no select, update or delete policy, so a leaked anon key cannot read anybody's contact details back out.
 
-Email notification is a later integration point: mark it clearly with a comment, and never let a notification failure fail the lead insert.
+Either credential pair authorises the insert: `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS, server-only) or the publishable/anon key (which relies on that policy). If neither is set, [lib/leads.ts](lib/leads.ts) falls back to `.data/leads.json` plus a structured log rather than losing the lead. Serverless filesystems are read-only, so in production that log *is* the record — configure Supabase before launch.
+
+## Email notification
+
+[lib/notify.ts](lib/notify.ts) sends through Resend. The recipient is `LEAD_NOTIFICATION_TO` — the firm's own inbox, **not** the visitor's. A visitor gets no email at all; the on-screen success message is their confirmation, and their address travels inside the notification body so the firm can reply.
+
+With `RESEND_API_KEY` or `RESEND_FROM` unset the module logs instead of sending, so a fresh clone and a preview deploy both work with nothing configured.
+
+Two things that are easy to get wrong: the SDK is imported lazily inside `deliver()` so an install without the key never loads it, and Resend reports a rejected send in the **response** rather than by throwing — the `error` field must be checked explicitly, or a bad key or an unverified sender domain looks exactly like success.
 
 ## Component conventions
 
-Server components by default; `"use client"` only on genuinely interactive pieces (mobile menu, form, reveal observer). Each page section is its own component under `components/sections/`; shared shell pieces under `components/site/`; primitives under `components/ui/`. Import via the `@/*` alias, which maps to the repo root. Components carry a doc comment explaining the *why* of non-obvious brand/accessibility decisions — match that density.
+Each page section is its own component under `components/sections/`; shared shell pieces under `components/site/`; primitives under `components/ui/`. Import via the `@/*` alias, which maps to the repo root. Components carry a doc comment explaining the *why* of non-obvious brand/accessibility decisions — match that density.
 
 Route-level components use Next 16's generated prop types (e.g. `LayoutProps<"/">`); these come from `.next/types` and only exist after a `dev` or `build` run.
 
 ## Assets
 
-`hero.jpg`, `team.jpg`, `og-image.jpg` and `favicon.svg` sit at the repo root as originals; the served copies are in `public/`. [app/icon.svg](app/icon.svg) is the App Router favicon. Alt text for the photos is in `lib/content.ts`, not written inline.
+The three photographs — `hero.jpg`, `team.jpg`, `og-image.jpg` — sit at the repo root as originals, with the served copies in `public/`. `favicon.svg` at the root has no `public/` copy: [app/icon.svg](app/icon.svg) is what the App Router serves as the favicon. Alt text for the photos is in `lib/content.ts`, not written inline.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
