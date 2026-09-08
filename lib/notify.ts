@@ -49,7 +49,7 @@ export async function notifyNewLead(row: LeadRow): Promise<void> {
 }
 
 async function deliver(subject: string, body: string): Promise<void> {
-  const recipient = process.env.LEAD_NOTIFICATION_TO ?? company.email;
+  const recipient = process.env.LEAD_NOTIFICATION_TO || company.email;
 
   // Replace this with a real provider call. Until then the notification is
   // written to the server log so nothing is silently dropped.
