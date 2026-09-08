@@ -4,21 +4,14 @@ import type { LeadRow } from "@/lib/leads";
 /**
  * Notification of a new consultation request.
  *
- * ── Integration point ──────────────────────────────────────────────────────
- * No email provider is configured in this project. To add one — Resend,
- * Postmark, SendGrid, SMTP, anything — install its SDK and replace the body of
- * `deliver()` below. Read credentials from environment variables only; never
- * commit a key.
+ * Delivery goes through Resend. Configuration is optional on purpose: with no
+ * RESEND_API_KEY set — a fresh clone, a preview deploy, a local run — the
+ * notification is written to the server log instead, so a developer still sees
+ * every lead and nothing has to be stubbed out to work offline.
  *
- *   Example (Resend):
- *     const { Resend } = await import("resend");
- *     await new Resend(process.env.RESEND_API_KEY).emails.send({
- *       from: "Arkan Website <website@arkan.co>",
- *       to: process.env.LEAD_NOTIFICATION_TO!,
- *       subject,
- *       text: body,
- *     });
- * ───────────────────────────────────────────────────────────────────────────
+ * RESEND_FROM must sit on a domain verified in the Resend dashboard. An
+ * unverified sender is rejected outright or lands in spam, which is the one
+ * failure mode that looks like nothing happening at all. See .env.example.
  *
  * This must never be able to fail a submission. The lead is already stored by
  * the time it runs, and a bounced notification is an internal problem — not
@@ -50,10 +43,33 @@ export async function notifyNewLead(row: LeadRow): Promise<void> {
 
 async function deliver(subject: string, body: string): Promise<void> {
   const recipient = process.env.LEAD_NOTIFICATION_TO || company.email;
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM;
 
-  // Replace this with a real provider call. Until then the notification is
-  // written to the server log so nothing is silently dropped.
-  console.info(
-    `[arkan] Notification pending for ${recipient}\n${subject}\n\n${body}`,
-  );
+  if (!apiKey || !from) {
+    console.warn(
+      "[arkan] Resend is not configured — this lead was not emailed to anyone.",
+    );
+    console.info(
+      `[arkan] Notification pending for ${recipient}\n${subject}\n\n${body}`,
+    );
+    return;
+  }
+
+  // Imported lazily so an install without the key never pays to load the SDK.
+  const { Resend } = await import("resend");
+
+  const { error } = await new Resend(apiKey).emails.send({
+    from,
+    to: recipient,
+    subject,
+    text: body,
+  });
+
+  // Resend reports a rejected send in the response rather than by throwing, so
+  // this branch — not the catch in notifyNewLead — is what actually surfaces a
+  // bad key or an unverified sender domain.
+  if (error) {
+    throw new Error(`${error.name}: ${error.message}`);
+  }
 }
