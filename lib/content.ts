@@ -213,3 +213,51 @@ export const seo = {
   ogImageAlt:
     "An Arkan consultant in a meeting room overlooking Tehran, beside the Arkan wordmark.",
 } as const;
+
+/**
+ * The AI assistant.
+ *
+ * Wording follows the brand guide the same way the rest of the site does:
+ * short sentences, no exclamation marks, and no promise the consultation
+ * itself would not make. The starters are phrased the way the brief says the
+ * audience thinks — "how can you help my business, and what should I do next?"
+ */
+export const assistant = {
+  eyebrow: "Ask Arkan",
+  heading: "Questions before you book?",
+  supporting:
+    "Ask about how we work, what a consultation involves, or where we usually start. The assistant answers from what Arkan has published — and hands you to the team when a question needs a person.",
+
+  inputLabel: "Your question",
+  placeholder: "Ask about how Arkan works…",
+  send: "Send",
+  sending: "Sending",
+
+  starters: [
+    "How does Arkan actually help a business that has stopped growing?",
+    "What happens in the first consultation?",
+    "What are the four pillars?",
+    "How long does working with Arkan usually take?",
+  ],
+
+  emptyHeading: "Where would you like to start?",
+  emptyBody: "Pick a question, or write your own.",
+
+  sourcesLabel: "Sources",
+  disclaimer:
+    "The assistant can be wrong. Nothing here is formal advice, and the team confirms anything that matters.",
+
+  handoffNotice:
+    "A member of the team has been notified and will follow up with you.",
+  leadNotice: "Your request is recorded. The team will contact you within one business day.",
+
+  errorMessage:
+    "Something went wrong on our side. Please try again, or use the form below.",
+  unavailable:
+    "The assistant is not available right now. The consultation form below still works.",
+
+  resetLabel: "Start over",
+  ctaHeading: "Ready to talk to a person?",
+  ctaBody: "The first conversation is free and takes about 30 minutes.",
+  ctaLabel: "Request a consultation",
+} as const;
