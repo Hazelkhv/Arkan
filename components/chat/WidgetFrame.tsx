@@ -39,17 +39,22 @@ export function WidgetFrame({
     <div className="flex h-dvh flex-col overflow-hidden bg-bone">
       {/* `on-pine` flips the focus ring to Bone: a Pine ring on a Pine bar is
           invisible, and this bar holds two focusable controls. */}
-      <div className="on-pine flex items-center justify-between gap-3 border-b border-sand bg-pine px-4 py-3">
+      {/* One line, not two. The bar has to hold the consultation link as
+          words — it is the reason the widget exists on somebody else's page,
+          and an icon would not be understood there — and at the ~380px an
+          embedded panel is given, a tagline underneath the title left every
+          line in the bar truncated. The title carries the branding; the
+          greeting below says what the assistant answers from. */}
+      <div className="on-pine flex items-center justify-between gap-2 border-b border-sand bg-pine px-4 py-2">
         <div className="min-w-0">
           <p className="truncate text-[0.9375rem] font-semibold text-bone">{title}</p>
-          <p className="truncate text-caption text-sand">{company.tagline}</p>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <a
             href={`${company.url}/#contact`}
             target="_top"
-            className="inline-flex min-h-11 items-center rounded-btn border border-bone/40 px-3 text-caption font-semibold text-bone transition-colors duration-200 hover:bg-bone/10"
+            className="inline-flex min-h-11 items-center whitespace-nowrap rounded-btn border border-bone/40 px-3 text-caption font-semibold text-bone transition-colors duration-200 hover:bg-bone/10"
           >
             {assistant.cta}
           </a>

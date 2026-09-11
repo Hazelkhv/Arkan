@@ -201,3 +201,18 @@ body {
 .chat-step {
   animation: chat-step-in 260ms var(--ease-out-soft) both;
 }
+
+/* ==========================================================================
+   Assistant — slim scrollbars
+   --------------------------------------------------------------------------
+   The conversation scrolls inside a panel a few inches wide. A platform
+   scrollbar with stepper arrows takes a visible slice of that width and reads
+   as a second, nested window rather than as part of the panel. `thin` keeps the
+   affordance and gives back the room; Sand on transparent is the panel's own
+   border colour, so the track disappears into the surface it sits on.
+   ========================================================================== */
+
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-sand) transparent;
+}

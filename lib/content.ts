@@ -254,6 +254,8 @@ export const assistant = {
     "The first conversation is free, and the team replies within 24 business hours.",
   cta: "Request a Consultation",
   newConversation: "Start a new conversation",
+  /** The launcher splits 24rem between two buttons; the long label wraps there. */
+  newConversationShort: "New conversation",
   helpful: "This was helpful",
   notHelpful: "This was not helpful",
   feedbackThanks: "Thank you — noted.",

@@ -97,6 +97,9 @@ type Stage = "greeting" | "menu" | "open";
  */
 const GREETING_MS = 700;
 
+/** How far the composer grows with the question before it starts scrolling. */
+const COMPOSER_MAX_PX = 160;
+
 type Props = {
   channel?: Channel;
   starters?: string[];
@@ -374,13 +377,39 @@ export function ChatPanel({
 
   const empty = messages.length === 0 && !streamingText && !busy;
 
+  /**
+   * Keep the composer exactly as tall as what is in it.
+   *
+   * Driven by the value rather than by the keystroke: a height set in the
+   * change handler alone is never undone when `ask` clears the box, so a
+   * three-line question left a three-line empty composer behind it. It also
+   * has to run on mount — a one-row textarea is shorter than the placeholder
+   * it is showing, which is what put a scrollbar and a clipped second line in
+   * an empty box.
+   */
+  useEffect(() => {
+    const element = composer.current;
+    if (!element) return;
+
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, COMPOSER_MAX_PX)}px`;
+    element.style.overflowY =
+      element.scrollHeight > COMPOSER_MAX_PX ? "auto" : "hidden";
+  }, [input, stage]);
+
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
       <div
         ref={scroller}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-6"
+        className={`scroll-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 ${
+          compact ? "py-4" : "py-6"
+        }`}
       >
-        <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-5">
+        <div
+          className={`mx-auto flex w-full max-w-[46rem] flex-col ${
+            compact ? "gap-4" : "gap-5"
+          }`}
+        >
           {empty && (
             <>
               {/* The greeting is the first step and is always present, so an
@@ -410,7 +439,7 @@ export function ChatPanel({
                         <button
                           type="button"
                           onClick={() => ask(`${assistant.topicPrefix} ${item.title}.`)}
-                          className="flex min-h-11 w-full items-center rounded-btn border border-sand bg-white px-4 py-2 text-start text-[0.9375rem] text-ink transition-colors duration-200 hover:border-pine/40 hover:bg-sand/40"
+                          className="flex min-h-11 w-full items-center rounded-btn border border-sand bg-white px-4 py-2 text-start text-[0.9375rem] leading-snug text-ink transition-colors duration-200 hover:border-pine/40 hover:bg-sand/40"
                         >
                           {item.title}
                         </button>
@@ -433,13 +462,24 @@ export function ChatPanel({
                   <h2 className="text-eyebrow uppercase text-slate">
                     {assistant.startersHeading}
                   </h2>
-                  <ul className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {/* The chips size to their content only where there is a row
+                      to lay them out in. `sm:` is a viewport query and the
+                      launcher is a 24rem box on a wide viewport, so keying the
+                      row off it produced a ragged content-width staircase
+                      inside the panel. `compact` describes the box. */}
+                  <ul
+                    className={`mt-3 flex flex-col gap-2 ${
+                      compact ? "" : "sm:flex-row sm:flex-wrap"
+                    }`}
+                  >
                     {suggestions.map((starter) => (
                       <li key={starter}>
                         <button
                           type="button"
                           onClick={() => ask(starter)}
-                          className="flex min-h-11 w-full items-center rounded-btn border border-sand bg-white px-4 text-start text-[0.9375rem] text-ink transition-colors duration-200 hover:border-pine/40 hover:bg-sand/40 sm:w-auto"
+                          className={`flex min-h-11 w-full items-center rounded-btn border border-sand bg-white px-4 py-2 text-start text-[0.9375rem] leading-snug text-ink transition-colors duration-200 hover:border-pine/40 hover:bg-sand/40 ${
+                            compact ? "" : "sm:w-auto"
+                          }`}
                         >
                           {starter}
                         </button>
@@ -520,7 +560,11 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div className="border-t border-sand bg-bone/90 pt-4 pb-5 backdrop-blur-sm">
+      <div
+        className={`border-t border-sand bg-bone/90 backdrop-blur-sm ${
+          compact ? "pt-3 pb-3" : "pt-4 pb-5"
+        }`}
+      >
         <div className="mx-auto w-full max-w-[46rem]">
           {/* The composer is the last step, not the first. Until the visitor has
               been greeted and shown what there is to ask about, an empty box
@@ -541,12 +585,7 @@ export function ChatPanel({
                 ref={composer}
                 value={input}
                 rows={1}
-                onChange={(event) => {
-                  setInput(event.target.value);
-                  const element = event.target;
-                  element.style.height = "auto";
-                  element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
-                }}
+                onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
                   // Enter sends, Shift+Enter breaks the line. The composer is one
                   // line tall, so Enter meaning "newline" would look broken.
@@ -560,40 +599,65 @@ export function ChatPanel({
                 }
                 disabled={busy}
                 autoFocus={autoFocus}
-                className="min-h-12 flex-1 resize-none rounded-btn border border-slate/40 bg-white px-4 py-3 text-body leading-relaxed text-ink placeholder:text-slate/70 focus:border-brass focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine disabled:opacity-70"
+                className={`min-h-12 w-full min-w-0 flex-1 resize-none rounded-btn border border-slate/40 bg-white py-3 leading-relaxed text-ink placeholder:text-slate/70 focus:border-brass focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine disabled:opacity-70 ${
+                  compact ? "px-3 text-[0.9375rem]" : "px-4 text-body"
+                }`}
               />
               <button
                 type="submit"
                 disabled={busy || !input.trim()}
-                className="inline-flex min-h-12 items-center rounded-btn bg-pine px-6 font-semibold text-bone transition-colors duration-200 hover:bg-[#0f2c26] disabled:cursor-not-allowed disabled:opacity-50"
+                className={`inline-flex min-h-12 shrink-0 items-center rounded-btn bg-pine font-semibold text-bone transition-colors duration-200 hover:bg-[#0f2c26] disabled:cursor-not-allowed disabled:opacity-50 ${
+                  compact ? "px-4 text-[0.9375rem]" : "px-6"
+                }`}
               >
                 {busy ? assistant.sending : assistant.send}
               </button>
             </form>
           )}
 
+          {/* Side by side where there is a line to share; stacked in the
+              launcher, where a three-line disclaimer and a button competing for
+              24rem wrap into a staircase. */}
           <div
-            className={`flex flex-wrap items-center justify-between gap-3 ${
-              stage === "open" ? "mt-3" : ""
+            className={`flex gap-3 ${stage === "open" ? "mt-3" : ""} ${
+              compact
+                ? "flex-col items-stretch gap-2"
+                : "flex-wrap items-center justify-between"
             }`}
           >
-            <p className="text-caption text-slate">{assistant.disclaimer}</p>
+            <p
+              className={`text-caption text-slate ${compact ? "leading-snug" : ""}`}
+            >
+              {assistant.disclaimer}
+            </p>
 
-            <div className="flex items-center gap-4">
+            {/* Both actions carry the same button shape, so the pair reads as a
+                row of controls rather than a stray link beside a button. The
+                CTA keeps the Pine border and the heavier weight, which is what
+                still makes it the primary one. */}
+            <div
+              className={`flex items-center gap-2 ${compact ? "" : "shrink-0"}`}
+            >
               {messages.length > 0 && (
                 <button
                   type="button"
                   onClick={reset}
-                  className="min-h-11 text-caption font-medium text-slate underline underline-offset-4 hover:text-pine"
+                  className={`inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-btn border border-slate/30 text-caption font-medium text-slate transition-colors duration-200 hover:border-pine/40 hover:text-pine ${
+                    compact ? "px-3" : "px-4"
+                  }`}
                 >
-                  {assistant.newConversation}
+                  {compact
+                    ? assistant.newConversationShort
+                    : assistant.newConversation}
                 </button>
               )}
 
               {showCta && (
                 <Link
                   href="/#contact"
-                  className="inline-flex min-h-11 items-center rounded-btn border border-pine px-4 text-caption font-semibold text-pine transition-colors duration-200 hover:bg-pine/[0.06]"
+                  className={`inline-flex min-h-11 items-center justify-center rounded-btn border border-pine px-4 text-center text-caption font-semibold text-pine transition-colors duration-200 hover:bg-pine/[0.06] ${
+                    compact ? "flex-1" : "shrink-0"
+                  }`}
                 >
                   {assistant.cta}
                 </Link>

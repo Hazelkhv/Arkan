@@ -143,26 +143,51 @@ export function AssistantLauncher() {
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("a")) close();
           }}
-          className="fixed inset-x-3 bottom-3 top-[calc(var(--header-h)+0.75rem)] z-[55] flex flex-col overflow-hidden rounded-card border border-sand bg-bone shadow-[0_18px_48px_-12px_rgba(21,32,28,0.35)] sm:inset-x-auto sm:end-5 sm:top-auto sm:h-[min(36rem,calc(100dvh-8rem))] sm:w-[24rem]"
+          className="fixed inset-x-3 bottom-3 top-[calc(var(--header-h)+0.75rem)] z-[55] flex flex-col overflow-hidden rounded-card border border-sand bg-bone shadow-[0_18px_48px_-12px_rgba(21,32,28,0.35)] sm:inset-x-auto sm:end-5 sm:top-auto sm:h-[min(36rem,calc(100dvh-8rem))] sm:w-[25rem]"
         >
           {/* Pine bar: `on-pine` flips the focus ring to Bone, because a Pine
-              ring on a Pine surface cannot be seen and this bar is focusable. */}
-          <div className="on-pine flex items-start justify-between gap-3 border-b border-sand bg-pine px-4 py-3">
+              ring on a Pine surface cannot be seen and this bar is focusable.
+
+              The full-page link is an icon rather than its own sentence. Spelled
+              out it took a third of a 24rem bar, and what it took came off the
+              title beside it — which is how the panel came to introduce itself
+              as "Answers from Arka…". The words are still its accessible name
+              and its tooltip. */}
+          <div className="on-pine flex items-center justify-between gap-2 border-b border-sand bg-pine px-4 py-3">
             <div className="min-w-0">
-              <p id={titleId} className="truncate font-semibold text-bone">
+              <p
+                id={titleId}
+                className="truncate text-[0.9375rem] font-semibold leading-tight text-bone"
+              >
                 {assistant.bubble.title}
               </p>
-              <p className="truncate text-caption text-sand">
+              <p className="truncate text-caption leading-tight text-sand">
                 {assistant.bubble.subtitle}
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center">
               <Link
                 href="/consultant"
-                className="hidden min-h-11 items-center rounded-btn px-3 text-caption font-semibold text-sand underline underline-offset-4 transition-colors duration-200 hover:text-bone sm:inline-flex"
+                aria-label={assistant.bubble.expand}
+                title={assistant.bubble.expand}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-sand transition-colors duration-200 hover:bg-bone/10 hover:text-bone"
               >
-                {assistant.bubble.expand}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  focusable="false"
+                  className="h-5 w-5"
+                >
+                  <path d="M14 4h6v6" />
+                  <path d="M20 4l-8 8" />
+                  <path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+                </svg>
               </Link>
 
               <button
