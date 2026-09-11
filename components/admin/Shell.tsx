@@ -98,11 +98,20 @@ export function Shell({
         </button>
       </header>
 
+      {/*
+        Collapsed with a class rather than the `hidden` attribute. Tailwind v4
+        preflight carries `[hidden] { display: none !important }` in @layer base,
+        and cascade layers reverse for important declarations — base beats
+        utilities — so no `lg:block`, important or not, could reopen this at the
+        desktop breakpoint. A nav stuck at display:none is not a grid item, which
+        is what dropped main into the 17rem sidebar column instead of the 1fr one.
+      */}
       <nav
         id="admin-nav"
         aria-label="Admin sections"
-        hidden={!open}
-        className="on-pine border-b border-pine/40 bg-pine px-3 py-4 lg:sticky lg:top-0 lg:!block lg:h-dvh lg:overflow-y-auto lg:border-b-0 lg:border-e lg:border-pine/40"
+        className={`on-pine border-b border-pine/40 bg-pine px-3 py-4 lg:sticky lg:top-0 lg:block lg:h-dvh lg:overflow-y-auto lg:border-b-0 lg:border-e lg:border-pine/40 ${
+          open ? "block" : "hidden"
+        }`}
       >
         <div className="hidden px-2 pb-5 lg:block">
           <Brand />
