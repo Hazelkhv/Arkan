@@ -26,6 +26,14 @@ export type LeadRow = {
   stage: string;
   challenge: string;
   preferred_time: string | null;
+  /**
+   * Which surface produced the lead, and — for the assistant — the conversation
+   * that produced it. Both are omitted by the website form: the column defaults
+   * to 'website', so the form keeps writing exactly the row it always has while
+   * the firm still gets one list of leads rather than two.
+   */
+  source?: string;
+  conversation_id?: string | null;
 };
 
 export type SaveResult =

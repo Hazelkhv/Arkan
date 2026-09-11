@@ -6,24 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev     # next dev
-npm run build   # next build — the only real correctness gate (TS + lint run here)
+npm run build   # next build — TypeScript runs here; the main correctness gate
 npm run start   # serve the production build
 npm run lint    # eslint (flat config, eslint-config-next core-web-vitals + typescript)
+npm test        # node --test via tsx, over tests/*.test.ts
 ```
 
-There is no test framework in this project. `npm run build` is the check to run after changing code.
+`npm run build` is still the gate for anything with a React or Next surface. `npm test` covers the assistant's pure functions — the ones whose failures are silent rather than loud: chunking, model resolution and scheduling, citation grouping, HTML extraction, the widget's domain allowlist, and Telegram's escaping. Run both after changing `lib/ai/`.
 
 ## What this is
 
 A single-page marketing site for **Arkan**, a Tehran business-strategy advisory. Next.js 16 App Router, React 19, Tailwind CSS v4, TypeScript strict, deployed to Vercel. The site has exactly one conversion goal: getting the visitor into the Consultation Request Form. Nothing else (no store, no payments, no accounts).
 
-Section order on the single page: Sticky Header → Hero → Services → Four Pillars → Process → Credibility → Consultation Form → Footer. Navigation is anchor links (`#services`, `#process`, `#about`, `#contact`) with smooth scrolling.
+Section order on the single page: Sticky Header → Hero → Services → Four Pillars → Process → Credibility → Consultation Form → Footer. Navigation is rooted anchor links (`/#services`, `/#process`, `/#about`, `/#contact`) with smooth scrolling, plus `/consultant`.
+
+Alongside it, and serving the same single goal, is a retrieval-augmented assistant on three channels and the admin panel that runs it. See "The AI assistant" below.
 
 ## Architecture
 
-[app/layout.tsx](app/layout.tsx) is the shell: `<html lang="en" dir="ltr">`, Inter via `next/font` (which is what defines the `--font-inter` that `--font-sans` reads), metadata and OpenGraph built from `seo`, ProfessionalService JSON-LD built from `company`, plus Header, Footer and `RevealController`. [app/page.tsx](app/page.tsx) composes the six section components in visitor order and does nothing else.
+**Three root layouts, in three route groups.** There is deliberately no `app/layout.tsx`:
 
-Only four modules are Client Components — [components/site/Header.tsx](components/site/Header.tsx) (mobile menu), [components/sections/ConsultationForm.tsx](components/sections/ConsultationForm.tsx) (`useActionState`), [components/ui/Field.tsx](components/ui/Field.tsx) (per-field validation on blur) and [components/ui/Reveal.tsx](components/ui/Reveal.tsx) (one IntersectionObserver for the whole page). Everything else is a Server Component; keep it that way.
+- `app/(site)/layout.tsx` — the website shell: `<html lang="en" dir="ltr">`, Inter via `next/font` (which is what defines the `--font-inter` that `--font-sans` reads), metadata and OpenGraph built from `seo`, ProfessionalService JSON-LD built from `company`, plus Header, Footer and `RevealController`. `app/(site)/page.tsx` composes the six section components in visitor order and does nothing else; `app/(site)/consultant/page.tsx` is the full-page chat.
+- `app/(embed)/layout.tsx` — a bare document for `/widget`, which is served inside an iframe on somebody else's site. The header, footer, skip link and structured data would all be wrong there; a second copy of Arkan's ProfessionalService markup on a stranger's page is worse than none.
+- `app/(admin)/layout.tsx` — the admin panel, `noindex`, denser, no marketing chrome.
+
+Navigating between groups is a full page load, which is right when they are different documents. Header links are rooted (`/#services`, not `#services`) because the header is shared with `/consultant`.
+
+The website's Client Components are still only four — [components/site/Header.tsx](components/site/Header.tsx) (mobile menu), [components/sections/ConsultationForm.tsx](components/sections/ConsultationForm.tsx) (`useActionState`), [components/ui/Field.tsx](components/ui/Field.tsx) (per-field validation on blur) and [components/ui/Reveal.tsx](components/ui/Reveal.tsx) (one IntersectionObserver for the whole page). Keep it that way. The assistant and the admin panel add their own, and those are all forms and live conversation, where interactivity is the point.
 
 ### The lead pipeline
 
@@ -53,7 +62,7 @@ Three markdown files at the repo root drive every content and design decision. R
 
 ## Content layer
 
-Every user-facing string lives in [lib/content.ts](lib/content.ts) as `as const` exports (`company`, `nav`, `hero`, `services`, `pillars`, `process`, `credibility`, `consultation`, `businessStages`, `contactTimes`, `footer`, `seo`). Components import strings from there rather than hardcoding them — including SEO metadata, form labels, validation copy and success/error messages. Add new copy to this module first.
+Every user-facing string lives in [lib/content.ts](lib/content.ts) as `as const` exports (`company`, `nav`, `hero`, `services`, `pillars`, `process`, `credibility`, `consultation`, `businessStages`, `contactTimes`, `assistant`, `footer`, `seo`). Components import strings from there rather than hardcoding them — including SEO metadata, form labels, validation copy and success/error messages. Add new copy to this module first.
 
 `businessStages` and `contactTimes` are also the zod enums in [lib/validation.ts](lib/validation.ts), so editing those arrays changes both the select options and what the server will accept.
 
@@ -93,6 +102,39 @@ Either credential pair authorises the insert: `SUPABASE_SERVICE_ROLE_KEY` (bypas
 With `RESEND_API_KEY` or `RESEND_FROM` unset the module logs instead of sending, so a fresh clone and a preview deploy both work with nothing configured.
 
 Two things that are easy to get wrong: the SDK is imported lazily inside `deliver()` so an install without the key never loads it, and Resend reports a rejected send in the **response** rather than by throwing — the `error` field must be checked explicitly, or a bad key or an unverified sender domain looks exactly like success.
+
+## The AI assistant
+
+**One brain, many channels.** `lib/ai/` owns everything the assistant does — retrieval, history, persona, tools, guardrails, cost. `runTurn` in [lib/ai/engine.ts](lib/ai/engine.ts) is the whole of it, and it yields `TurnEvent`s. A channel is a transport that renders those events and nothing else:
+
+- `app/api/chat/route.ts` — server-sent events for `/consultant` and `/widget`
+- `app/api/telegram/webhook/route.ts` — one message, edited as the answer grows
+
+If a rule about what the assistant *says* appears in a channel, it is in the wrong place. Channels may not invent event types either: anything a channel needs to say about a turn is something the engine should be saying.
+
+### Rules that are load-bearing
+
+**Model slugs are fetched, never written from memory.** [lib/ai/catalog.ts](lib/ai/catalog.ts) reads OpenRouter's live catalog and caches it for an hour. `model_config.active_model = null` means "resolve from the catalog" and is the shipped default. A slug written into code at build time names a model that gets retired, and the symptom is a 404 on a visitor's question. Do not paste one in from memory — check the catalog.
+
+**1536 dimensions, not 3072.** pgvector indexes `vector` only to 2,000, so the default width of `text-embedding-3-large` would force a sequential scan on every query. The model is Matryoshka-trained, so the truncation is supported. Changing the embedding model or its width is not an in-place edit: vectors from two models are not comparable, nothing errors, and every answer quietly gets worse. [supabase/assistant.sql](supabase/assistant.sql) documents the add / backfill / cut-over migration.
+
+**Every assistant table has RLS enabled with no policy at all.** That is why `SUPABASE_SERVICE_ROLE_KEY` is required rather than optional, and why the admin panel talks to the database through the service role rather than through the signed-in user. Do not add a policy to make something "easier from the client" — the knowledge base, every visitor's conversation and every API setting would become readable with a key that ships to the browser. The one exception is the pre-existing insert-only policy on `leads`.
+
+**An empty retrieval is stated, not left blank.** A model handed an empty context section answers from its own memory of the world and sounds just as certain doing it. `contextBlock` in the engine says so explicitly, and the assistant admits it does not know.
+
+**The lead pipeline is shared, not copied.** `capture_lead` goes through the same Zod schema and the same store-then-notify order as the website form, via `@/lib/server-leads`. `source` and `conversation_id` say where a row came from. A second lead path would drift from the first, and the drift would surface as a missing lead.
+
+### Files worth knowing
+
+`catalog` (models, pricing, schedules) · `embeddings` (four providers, query/document direction) · `chunking` + `extract` (PDF, DOCX, URL, text) · `retrieve` (match_chunks, reranking, citations) · `generate` (OpenRouter streaming, tool-call reassembly) · `tools` (capture_lead, request_human) · `memory` (conversations, summarisation) · `budget`, `rate-limit`, `session`, `origins`, `playground`.
+
+`lib/admin/` holds the panel: `auth.ts` (Supabase Auth for identity, `admin_users` for authorisation), `roles.ts` (five roles, five capabilities), `analytics.ts`, and `actions/*.ts` — Server Actions, one module per area. **A `"use server"` module may only export async functions**, which is why `lead-status.ts`, `roles.ts` and `settings.ts` exist beside the actions that use them.
+
+### Database
+
+[supabase/assistant.sql](supabase/assistant.sql) is the schema, [supabase/assistant-analytics.sql](supabase/assistant-analytics.sql) the dashboard's aggregate functions (in SQL because supabase-js cannot express a GROUP BY), [supabase/assistant-settings.sql](supabase/assistant-settings.sql) the rate limit, retention and purge. All are applied to the live project as the 20260910 `assistant_*` migrations.
+
+Postgres details that are decisions rather than style: `channel text unique` on `model_config` would **not** prevent two default rows, because a unique constraint does not collapse NULLs — hence two partial indexes. `bump_rate_limit` and `bump_conversation` are single statements so concurrent requests cannot both read a stale count.
 
 ## Component conventions
 

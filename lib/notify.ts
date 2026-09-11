@@ -29,6 +29,11 @@ export async function notifyNewLead(row: LeadRow): Promise<void> {
     `Industry:  ${row.industry ?? "—"}`,
     `Stage:     ${row.stage}`,
     `Preferred: ${row.preferred_time ?? "—"}`,
+    // Named only when it is not the website form, so the notification the firm
+    // has been reading for months does not change shape.
+    ...(row.source && row.source !== "website"
+      ? [`Source:    ${row.source} (AI assistant)`]
+      : []),
     "",
     "Challenge:",
     row.challenge,

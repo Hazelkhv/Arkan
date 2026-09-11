@@ -4,7 +4,19 @@ import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
 import { RevealController } from "@/components/ui/Reveal";
 import { company, seo } from "@/lib/content";
-import "./globals.css";
+import "../globals.css";
+
+/**
+ * The website's root layout.
+ *
+ * One of two: app/(embed)/layout.tsx is the other, and it is a root layout too.
+ * The embeddable widget is served inside an iframe on somebody else's site,
+ * where this site's header, footer, skip link and organisation markup would all
+ * be wrong — so the two live in separate route groups with separate <html>
+ * documents rather than one layout that has to ask which context it is in.
+ * Navigating between the groups is a full page load, which is exactly right
+ * when the two are different documents.
+ */
 
 /**
  * Inter, self-hosted by next/font with zero layout shift. Latin subset only —

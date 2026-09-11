@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import { Logo } from "@/components/site/Logo";
 import { ButtonLink } from "@/components/ui/Button";
 import { company, nav } from "@/lib/content";
@@ -36,31 +37,31 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-sand bg-bone/85 backdrop-blur-md">
       <div className="mx-auto flex h-[var(--header-h)] max-w-[75rem] items-center justify-between gap-6 px-5 sm:px-8">
-        <a
-          href="#top"
+        <Link
+          href="/#top"
           className="rounded-sm"
           aria-label={`${company.name} — back to top`}
         >
           <Logo />
-        </a>
+        </Link>
 
         <nav aria-label="Primary" className="hidden md:block">
           <ul className="flex items-center gap-8">
             {nav.map((item) => (
               <li key={item.href}>
-                <a
+                <Link
                   href={item.href}
                   className="text-[0.9375rem] font-medium text-slate transition-colors duration-200 hover:text-pine"
                 >
                   {item.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
         </nav>
 
         <div className="hidden md:block">
-          <ButtonLink href="#contact" size="sm">
+          <ButtonLink href="/#contact" size="sm">
             Request a Consultation
           </ButtonLink>
         </div>
@@ -102,18 +103,18 @@ export function Header() {
           <ul className="flex flex-col">
             {nav.map((item) => (
               <li key={item.href}>
-                <a
+                <Link
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className="flex min-h-12 items-center border-b border-sand/70 text-body font-medium text-pine"
                 >
                   {item.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
           <ButtonLink
-            href="#contact"
+            href="/#contact"
             className="mt-5 mb-2 w-full"
             onClick={() => setOpen(false)}
           >

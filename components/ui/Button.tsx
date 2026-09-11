@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
 /**
@@ -51,20 +52,29 @@ type ButtonProps = {
   children: ReactNode;
 };
 
+/**
+ * next/link rather than a bare anchor, because these hrefs are now rooted
+ * (`/#contact`) so the same header works on the home page and on /consultant.
+ * A plain anchor to a route would reload the whole document; Link navigates.
+ * A bare fragment and an external URL both still behave as ordinary links.
+ */
 export function ButtonLink({
   variant = "primary",
   size = "md",
   className = "",
+  href,
   children,
   ...props
-}: ButtonProps & AnchorHTMLAttributes<HTMLAnchorElement>) {
+}: ButtonProps &
+  AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
   return (
-    <a
+    <Link
+      href={href}
       className={`${BASE} ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
       {...props}
     >
       <Inner variant={variant}>{children}</Inner>
-    </a>
+    </Link>
   );
 }
 

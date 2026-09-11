@@ -22,11 +22,20 @@ export const company = {
     "We help small and medium-sized businesses build sustainable, measurable growth through clear strategy and disciplined execution.",
 } as const;
 
+/**
+ * Rooted rather than bare fragments (`/#services`, not `#services`).
+ *
+ * The header is shared with /consultant, where a bare `#services` would look
+ * for a section that is not on the page. On the home page the browser still
+ * treats these as same-document navigation, so the smooth scrolling is
+ * unaffected.
+ */
 export const nav = [
-  { label: "Services", href: "#services" },
-  { label: "Process", href: "#process" },
-  { label: "About", href: "#about" },
-  { label: "Contact", href: "#contact" },
+  { label: "Services", href: "/#services" },
+  { label: "Process", href: "/#process" },
+  { label: "About", href: "/#about" },
+  { label: "Ask Arkan", href: "/consultant" },
+  { label: "Contact", href: "/#contact" },
 ] as const;
 
 export const hero = {
@@ -197,6 +206,60 @@ export const businessStages = [
 ] as const;
 
 export const contactTimes = ["Morning", "Afternoon", "Evening"] as const;
+
+/**
+ * The assistant's interface copy.
+ *
+ * The words the assistant *says* are not here — those come from the system
+ * prompt in the database, which an operator edits without a deploy. This is the
+ * furniture around it: labels, placeholders, empty states and the sentences
+ * shown when something goes wrong.
+ *
+ * `starters` are questions the knowledge base should be able to answer from the
+ * client brief alone. They double as the honest boundary of the assistant's
+ * scope, which is why none of them asks for advice about a specific business:
+ * the assistant guides, and the consultation is where advice happens.
+ */
+export const assistant = {
+  eyebrow: "Ask Arkan",
+  heading: "Ask about how we work.",
+  intro:
+    "Questions about our services, the four pillars, or what an engagement looks like. Answers come from Arkan's own material, and the assistant will tell you when it does not know something.",
+  disclaimer:
+    "An AI assistant, not a consultant. It cannot advise on your business — that is what the first conversation is for.",
+  inputLabel: "Your question",
+  inputPlaceholder: "What does an engagement with Arkan involve?",
+  send: "Send",
+  sending: "Sending",
+  replying: "Arkan's assistant is replying",
+  startersHeading: "Try one of these",
+  starters: [
+    "What does Arkan actually do?",
+    "What are the four pillars?",
+    "How does a first engagement start?",
+    "Who is Arkan a good fit for?",
+  ],
+  sourcesLabel: "Sources",
+  sourcesEmpty: "No source in the knowledge base covered this.",
+  ctaHeading: "Ready to talk to someone?",
+  ctaBody:
+    "The first conversation is free, and the team replies within 24 business hours.",
+  cta: "Request a Consultation",
+  newConversation: "Start a new conversation",
+  helpful: "This was helpful",
+  notHelpful: "This was not helpful",
+  feedbackThanks: "Thank you — noted.",
+  offline:
+    "The assistant is not available right now. Please use the consultation form, or email info@arkan.co.",
+  errorMessage:
+    "Something went wrong at our end. Please try again, or email info@arkan.co.",
+  emptyMessage: "Ask a question and the assistant will answer if it can.",
+  widget: {
+    launcher: "Ask Arkan",
+    close: "Close the assistant",
+    title: "Arkan assistant",
+  },
+} as const;
 
 export const footer = {
   statement: company.statement,
