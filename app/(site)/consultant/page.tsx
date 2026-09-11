@@ -65,6 +65,10 @@ export default async function ConsultantPage() {
           channel="web"
           welcome={settings?.welcomeMessage ?? null}
           starters={settings?.quickReplies?.length ? [...settings.quickReplies] : undefined}
+          // The heading above has already said what the assistant is, and a
+          // visitor who navigated here came for the composer, not for an
+          // introduction. The launcher and the widget are the ones that need it.
+          sequenced={false}
         />
       ) : (
         <Unavailable />

@@ -84,6 +84,10 @@ const TAKEOVER_POLL_MS = 5000;
  * question, picking an area, or a reload that finds history. The sequence is
  * for a visitor who has not said anything yet, and it is never in the way of
  * one who has.
+ *
+ * `sequenced={false}` starts at `open` instead, which is what /consultant does:
+ * that page introduces the assistant in its own heading, and somebody who
+ * navigated to the chat has already chosen to have one.
  */
 type Stage = "greeting" | "menu" | "open";
 
@@ -114,6 +118,16 @@ type Props = {
    * clipped by a one-row textarea; the short one fits.
    */
   compact?: boolean;
+  /**
+   * Introduce the conversation a step at a time. See `Stage`.
+   *
+   * True where the panel is a small box a visitor has just opened and has to be
+   * told what it is for. False on /consultant, which is a page whose heading and
+   * introduction have already done that job above the panel, and where somebody
+   * who arrived on purpose should find the composer waiting rather than a
+   * sequence to sit through.
+   */
+  sequenced?: boolean;
   className?: string;
 };
 
@@ -128,6 +142,7 @@ export function ChatPanel({
   showCta = true,
   autoFocus = false,
   compact = false,
+  sequenced = true,
   className = "",
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -140,7 +155,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [rated, setRated] = useState<Record<string, 1 | -1>>({});
   const [withOperator, setWithOperator] = useState(false);
-  const [stage, setStage] = useState<Stage>("greeting");
+  const [stage, setStage] = useState<Stage>(sequenced ? "greeting" : "open");
 
   const conversationId = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -347,9 +362,10 @@ export function ChatPanel({
     setMessages([]);
     setError(null);
     setHandoff(null);
-    // A new conversation starts where the first one did, at the greeting.
-    setStage("greeting");
-  }, [channel]);
+    // A new conversation starts where the first one did.
+    setStage(sequenced ? "greeting" : "open");
+    if (!sequenced) composer.current?.focus();
+  }, [channel, sequenced]);
 
   const openComposer = useCallback(() => {
     focusComposerNext.current = true;
@@ -431,13 +447,16 @@ export function ChatPanel({
                     ))}
                   </ul>
 
-                  <button
-                    type="button"
-                    onClick={() => setStage("menu")}
-                    className="mt-3 inline-flex min-h-11 items-center text-caption font-medium text-slate underline underline-offset-4 transition-colors duration-200 hover:text-pine"
-                  >
-                    {assistant.backToMenu}
-                  </button>
+                  {/* Only where there was a list to go back to. */}
+                  {sequenced && (
+                    <button
+                      type="button"
+                      onClick={() => setStage("menu")}
+                      className="mt-3 inline-flex min-h-11 items-center text-caption font-medium text-slate underline underline-offset-4 transition-colors duration-200 hover:text-pine"
+                    >
+                      {assistant.backToMenu}
+                    </button>
+                  )}
                 </div>
               )}
             </>
