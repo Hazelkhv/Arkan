@@ -498,12 +498,31 @@ insert into public.model_config (channel, provider, active_model, temperature, m
 select null, 'openrouter', null, 0.30, 1024
 where not exists (select 1 from public.model_config where channel is null);
 
+-- Chunking and the threshold are measured values, not defaults anybody liked
+-- the look of. 500-token chunks turned the whole client brief into two
+-- passages, and a passage covering a firm's history, services, process and
+-- testimonials at once has a vector close to nothing in particular; the best
+-- similarity improved on every test question as the chunks got smaller.
+--
+-- The threshold matters more. Scoring twelve answerable questions against eight
+-- unanswerable ones on this model at this width, the populations separate:
+--
+--   answerable:   0.216 … 0.629   (lowest: "Is the first call free?")
+--   unanswerable: 0.044 … 0.200   (highest: "Write me a Python script…")
+--
+-- 0.300 kept 10 of the 12. 0.210 sits in the middle of that gap, keeps all 12
+-- and admits none of the 8. Absolute cosine scores are a property of the model
+-- rather than of the content, so this number belongs to
+-- text-embedding-3-large at 1536 dimensions — re-run the calibration after
+-- changing the embedding model, or once the knowledge base is large enough to
+-- move the distributions.
+
 insert into public.embedding_config (
   is_active, provider, model, dimensions,
   chunk_size, chunk_overlap, chunking_strategy,
   top_k, similarity_threshold, reranker_enabled
 )
-select true, 'openai', 'text-embedding-3-large', 1536, 500, 50, 'recursive', 6, 0.300, false
+select true, 'openai', 'text-embedding-3-large', 1536, 150, 30, 'recursive', 6, 0.210, false
 where not exists (select 1 from public.embedding_config where is_active);
 
 -- Empty allowed_domains on the widget row is not an oversight: an allowlist
