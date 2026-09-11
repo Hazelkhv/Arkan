@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { AssistantLauncher } from "@/components/chat/AssistantLauncher";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
 import { RevealController } from "@/components/ui/Reveal";
@@ -105,6 +106,12 @@ export default function RootLayout({
         <Footer />
 
         <RevealController />
+
+        {/* Outside <main>, because it is not part of the document's content —
+            it floats over whatever the visitor is reading. It renders nothing
+            on /consultant, and nothing at all until it has confirmed the
+            channel is on. */}
+        <AssistantLauncher />
 
         <script
           type="application/ld+json"

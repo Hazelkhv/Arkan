@@ -259,6 +259,19 @@ export const assistant = {
     close: "Close the assistant",
     title: "Arkan assistant",
   },
+  /**
+   * The launcher on Arkan's own pages — a different surface from the widget:
+   * no iframe, no host site, and a visitor who is already reading the firm's
+   * own words. `open` is phrased as what pressing the button does rather than
+   * as a bare noun, because it is the accessible name of an icon-only control.
+   */
+  bubble: {
+    open: "Ask Arkan a question",
+    close: "Close the assistant",
+    title: "Ask Arkan",
+    subtitle: "Answers from Arkan's own material.",
+    expand: "Open the full page",
+  },
 } as const;
 
 export const footer = {
