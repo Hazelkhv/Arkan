@@ -93,10 +93,10 @@ function Unavailable() {
             {assistant.cta}
           </Link>
           <a
-            href="mailto:info@arkan.co"
+            href="mailto:nazanin.khosravi20.nk@gmail.com"
             className="inline-flex min-h-12 items-center rounded-btn border border-pine px-6 font-semibold text-pine transition-colors duration-200 hover:bg-pine/[0.06]"
           >
-            info@arkan.co
+            nazanin.khosravi20.nk@gmail.com
           </a>
         </div>
       </div>

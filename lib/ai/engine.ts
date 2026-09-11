@@ -39,7 +39,7 @@ import type { TokenUsage, TurnEvent, TurnRequest } from "@/lib/ai/types";
 
 /** The visitor sees this when something breaks. It is never a stack trace. */
 const FAILURE_MESSAGE =
-  "Something went wrong at our end. Please try again, or email info@arkan.co and the team will pick it up.";
+  "Something went wrong at our end. Please try again, or email nazanin.khosravi20.nk@gmail.com and the team will pick it up.";
 
 const TOO_FAST_MESSAGE =
   "That is a lot of questions at once. Give it a moment and send that again.";
@@ -230,7 +230,7 @@ export async function* runTurn(
           result = {
             content:
               "That action failed. Apologise briefly and give the visitor " +
-              "info@arkan.co so they can reach the team directly.",
+              "nazanin.khosravi20.nk@gmail.com so they can reach the team directly.",
             label: "Action failed",
           };
         }

@@ -14,7 +14,7 @@ export const company = {
   founded: 2017,
   city: "Tehran",
   country: "Iran",
-  email: "info@arkan.co",
+  email: "nazanin.khosravi20.nk@gmail.com",
   phone: "+98 21 8800 0000",
   phoneHref: "+982188000000",
   url: "https://arkan.co",
@@ -250,9 +250,9 @@ export const assistant = {
   notHelpful: "This was not helpful",
   feedbackThanks: "Thank you — noted.",
   offline:
-    "The assistant is not available right now. Please use the consultation form, or email info@arkan.co.",
+    "The assistant is not available right now. Please use the consultation form, or email nazanin.khosravi20.nk@gmail.com.",
   errorMessage:
-    "Something went wrong at our end. Please try again, or email info@arkan.co.",
+    "Something went wrong at our end. Please try again, or email nazanin.khosravi20.nk@gmail.com.",
   emptyMessage: "Ask a question and the assistant will answer if it can.",
   widget: {
     launcher: "Ask Arkan",
