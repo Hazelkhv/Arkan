@@ -17,7 +17,7 @@ export const company = {
   email: "nazanin.khosravi20.nk@gmail.com",
   phone: "+98 21 8800 0000",
   phoneHref: "+982188000000",
-  url: "https://arkan.co",
+  url: "https://arkan-6kau.vercel.app",
   statement:
     "We help small and medium-sized businesses build sustainable, measurable growth through clear strategy and disciplined execution.",
 } as const;

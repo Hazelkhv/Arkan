@@ -1,4 +1,5 @@
 import { OPENROUTER_BASE_URL } from "@/lib/ai/catalog";
+import { company } from "@/lib/content";
 import type { TokenUsage } from "@/lib/ai/types";
 
 /**
@@ -78,7 +79,7 @@ function requireKey(): string {
 }
 
 function headers(): Record<string, string> {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://arkan.co";
+  const site = process.env.NEXT_PUBLIC_SITE_URL || company.url;
 
   return {
     "content-type": "application/json",

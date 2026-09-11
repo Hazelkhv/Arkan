@@ -11,6 +11,7 @@
  */
 
 import { cleanText } from "@/lib/ai/chunking";
+import { company } from "@/lib/content";
 
 export type SourceType = "pdf" | "docx" | "text" | "url";
 
@@ -108,7 +109,7 @@ export async function extractFromUrl(url: string): Promise<Extraction> {
   }
 
   const response = await fetch(parsed, {
-    headers: { "user-agent": "ArkanAssistant/1.0 (+https://arkan.co)" },
+    headers: { "user-agent": `ArkanAssistant/1.0 (+${company.url})` },
     redirect: "follow",
     signal: AbortSignal.timeout(30_000),
   });
