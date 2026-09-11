@@ -194,6 +194,7 @@ export function AssistantLauncher() {
             welcome={config.welcome}
             starters={config.starters.length ? config.starters : undefined}
             autoFocus
+            compact
             className="px-4"
           />
         </div>

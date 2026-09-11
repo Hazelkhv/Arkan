@@ -175,3 +175,29 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   Assistant — the stepped opening
+   --------------------------------------------------------------------------
+   The panel introduces itself a step at a time rather than landing a greeting,
+   a menu, a composer and a disclaimer in one frame — inside the 24rem launcher
+   that is a wall, and a wall is read by nobody. Each step fades in so it reads
+   as the assistant speaking rather than as the layout jumping. The
+   reduced-motion block above flattens this to nothing; it carries `!important`,
+   so it still wins from further up the file.
+   ========================================================================== */
+
+@keyframes chat-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.chat-step {
+  animation: chat-step-in 260ms var(--ease-out-soft) both;
+}

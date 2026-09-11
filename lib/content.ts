@@ -232,6 +232,14 @@ export const assistant = {
   send: "Send",
   sending: "Sending",
   replying: "Arkan's assistant is replying",
+  greeting:
+    "Hello — I am Arkan's assistant. I answer from the firm's own material, and I say so when something is not in it.",
+  menuHeading: "What can I help you with?",
+  menuHint: "Pick an area, or ask your own question.",
+  topicPrefix: "Tell me about",
+  askOwn: "Something else — I will type my question",
+  backToMenu: "Back to the list",
+  inputPlaceholderShort: "Type your question",
   startersHeading: "Try one of these",
   starters: [
     "What does Arkan actually do?",

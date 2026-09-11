@@ -52,6 +52,7 @@ export default async function WidgetPage({
         // window instead.
         showCta={false}
         autoFocus
+        compact
       />
     </WidgetFrame>
   );
