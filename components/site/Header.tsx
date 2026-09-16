@@ -46,7 +46,9 @@ export function Header() {
         </Link>
 
         <nav aria-label="Primary" className="hidden md:block">
-          <ul className="flex items-center gap-8">
+          {/* Six items only just fit beside the logo and the CTA at the md
+              breakpoint, so the spacing opens up at lg rather than starting there. */}
+          <ul className="flex items-center gap-5 lg:gap-8">
             {nav.map((item) => (
               <li key={item.href}>
                 <Link

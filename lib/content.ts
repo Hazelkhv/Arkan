@@ -34,19 +34,21 @@ export const nav = [
   { label: "Services", href: "/#services" },
   { label: "Process", href: "/#process" },
   { label: "About", href: "/#about" },
+  { label: "Insight", href: "/blog" },
   { label: "Ask Arkan", href: "/consultant" },
   { label: "Contact", href: "/#contact" },
 ] as const;
 
 /**
- * The footer carries one link the sticky header does not: the blog.
+ * Header and footer now carry the same six links.
  *
- * The header is the conversion path — five items, each a step toward the form.
- * Reading material belongs a level down, where a visitor who is not ready to
- * enquire can find it without the header growing a sixth item and losing its
- * single purpose.
+ * Insight used to be footer-only, on the argument that the header is the
+ * conversion path and reading material belongs a level down. The articles
+ * earned the promotion: they are the only thing on the site a visitor who is
+ * not ready to enquire can do, and the home page section that previews them
+ * needs a destination in the header to match.
  */
-export const footerNav = [...nav, { label: "Insight", href: "/blog" }] as const;
+export const footerNav = nav;
 
 export const hero = {
   headline: "When growth stalls, the problem is rarely effort.",
@@ -342,6 +344,12 @@ export const blog = {
   intro:
     "Short pieces for founders and managers whose business earns well and has stopped moving. Written by Arkan, published here as we go.",
   empty: "The first article is on its way. Check back shortly.",
+  // The home page preview asks for a shorter promise than the index does: the
+  // visitor is mid-scroll on the way to the form, not browsing for something
+  // to read.
+  homeHeading: "Reading, while you decide",
+  homeIntro:
+    "Three recent pieces on the things that usually turn out to be blocking growth.",
   readMore: "Read the article",
   backToIndex: "All articles",
   faqHeading: "Questions we get asked",

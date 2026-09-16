@@ -18,7 +18,7 @@ npm test        # node --test via tsx, over tests/*.test.ts
 
 A single-page marketing site for **Arkan**, a Tehran business-strategy advisory. Next.js 16 App Router, React 19, Tailwind CSS v4, TypeScript strict, deployed to Vercel. The site has exactly one conversion goal: getting the visitor into the Consultation Request Form. Nothing else (no store, no payments, no accounts).
 
-Section order on the single page: Sticky Header → Hero → Services → Four Pillars → Process → Credibility → Consultation Form → Footer. Navigation is rooted anchor links (`/#services`, `/#process`, `/#about`, `/#contact`) with smooth scrolling, plus `/consultant`.
+Section order on the single page: Sticky Header → Hero → Services → Four Pillars → Process → Credibility → Insight → Consultation Form → Footer. Navigation is rooted anchor links (`/#services`, `/#process`, `/#about`, `/#contact`) with smooth scrolling, plus `/blog` and `/consultant`.
 
 Alongside it, and serving the same single goal, is a retrieval-augmented assistant on three channels and the admin panel that runs it. See "The AI assistant" below.
 
@@ -204,7 +204,12 @@ is useless on Vercel: serverless instances do not share memory, which is why
 
 **Surfaces.** `/blog` and `/blog/[slug]` are in the site group (published posts
 only, Article + FAQPage JSON-LD from the SEO agent's output, `.article` styles
-in globals.css). `/studio` is in the admin group — noindex, no marketing chrome
+in globals.css), and [components/sections/Insight.tsx](components/sections/Insight.tsx)
+previews the three latest on the home page, just above the form. That section is
+the one blog surface that is **not** `force-dynamic` — the home page stays a
+static document — so every path that publishes a post calls `revalidatePath("/")`:
+the studio's approve route, the weekly cron and `/api/pipeline/run` after an
+auto-publish. Miss one and the home page silently stops listing new articles. `/studio` is in the admin group — noindex, no marketing chrome
 — and is locked by `STUDIO_PASSWORD`, with the guard on the server and on every
 API route. `/api/pipeline/run` returns immediately and continues the run inside
 `after()`; the studio polls the run record, which is why every step is persisted

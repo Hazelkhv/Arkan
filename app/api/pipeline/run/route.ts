@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { runPipeline } from "@/lib/blog/agents/orchestrator";
 import { getStore } from "@/lib/blog/store";
@@ -47,7 +48,13 @@ export async function POST(request: Request): Promise<Response> {
   const run = await getStore().createRun(topicHint);
 
   after(async () => {
-    await runPipeline({ runId: run.id });
+    const { post } = await runPipeline({ runId: run.id });
+    // همان دلیل کرون هفتگی: مقاله‌ی خودکارمنتشرشده از مسیر /api/posts رد
+    // نمی‌شود، پس کش صفحه‌ی اصلی و /blog را باید اینجا تازه کرد.
+    if (post?.status === "published") {
+      revalidatePath("/");
+      revalidatePath("/blog");
+    }
   });
 
   return Response.json({ runId: run.id }, { status: 202 });

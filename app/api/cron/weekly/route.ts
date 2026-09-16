@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { runPipeline } from "@/lib/blog/agents/orchestrator";
 import { getStore } from "@/lib/blog/store";
 
@@ -43,6 +44,13 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const { run, post } = await runPipeline({ topicHint: null });
+
+  // انتشار خودکار از /api/posts رد نمی‌شود، پس تازه‌سازی کش باید اینجا صدا زده
+  // شود — وگرنه مقاله‌ی یکشنبه تا دیپلوی بعدی در صفحه‌ی اصلی دیده نمی‌شود.
+  if (post?.status === "published") {
+    revalidatePath("/");
+    revalidatePath("/blog");
+  }
 
   return Response.json({
     status: run.status,

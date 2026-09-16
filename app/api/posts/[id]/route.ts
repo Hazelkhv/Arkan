@@ -10,6 +10,9 @@ import { guardStudioRoute } from "@/lib/blog/studio-auth";
  *
  * revalidatePath بعد از تغییر وضعیت لازم است، وگرنه صفحه‌ی /blog همچنان نسخه‌ی
  * کش‌شده‌ی قبلی را نشان می‌دهد و به‌نظر می‌رسد دکمه کار نکرده است.
+ *
+ * «/» هم در فهرست هست: بخش Insight در صفحه‌ی اصلی سه مقاله‌ی آخر را
+ * نشان می‌دهد و برخلاف /blog استاتیک می‌ماند — تنها راه تازه‌شدنش همین خط است.
  */
 
 export const dynamic = "force-dynamic";
@@ -63,6 +66,7 @@ export async function PATCH(
         : existing.publishedAt,
   });
 
+  revalidatePath("/");
   revalidatePath("/blog");
   revalidatePath(`/blog/${existing.slug}`);
 
