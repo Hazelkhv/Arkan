@@ -38,6 +38,17 @@ export const IdeaSchema = z.object({
   searchIntent: z.enum(["informational", "commercial", "comparison", "how-to"]),
   score: z.number().min(0).max(10),
   reason: z.string().min(10),
+  /**
+   * دو فیلد زیر خروجی نیستند، ابزار فکر کردن‌اند.
+   *
+   * «تکراری پیشنهاد نده» به‌تنهایی کار نکرد: مدل فهرست عنوان‌ها را می‌دید و باز هم
+   * همان مقاله را با کلمه‌های دیگر پیشنهاد می‌داد. وادار کردنش به اینکه نزدیک‌ترین
+   * پستِ موجود را *اسم ببرد* و بگوید این یکی چه چیز تازه‌ای دارد، مقایسه را از یک
+   * نگاه گذرا به یک کار صریح تبدیل می‌کند. اگر نتواند تفاوت را بنویسد، معمولاً
+   * تفاوتی هم وجود ندارد.
+   */
+  closestExisting: z.string().nullable().catch(null).default(null),
+  differsFrom: z.string().min(10),
 });
 export type Idea = z.infer<typeof IdeaSchema>;
 
@@ -46,6 +57,21 @@ export const IdeaListSchema = z.object({
   ideas: z.array(IdeaSchema).min(3),
 });
 export type IdeaList = z.infer<typeof IdeaListSchema>;
+
+/**
+ * داورِ تکرار — یک سؤال، یک جواب.
+ *
+ * ایده‌یاب همزمان دارد خلاقیت می‌کند، امتیاز می‌دهد و مراقب تکرار هم هست؛ سومی
+ * همان کاری است که زیر فشار دو تای اول قربانی می‌شود. این اسکیما برای یک صدا زدنِ
+ * جداگانه است که فقط یک کار دارد: «این ایده با این چند پست، یک مقاله است یا نه؟»
+ */
+export const NoveltyVerdictSchema = z.object({
+  verdict: z.enum(["distinct", "duplicate"]),
+  /** عنوان پستی که ایده تکرارِ آن است؛ برای verdict = distinct برابر null. */
+  closest: z.string().nullable().catch(null).default(null),
+  reason: z.string().min(10),
+});
+export type NoveltyVerdict = z.infer<typeof NoveltyVerdictSchema>;
 
 /* ── ۲. استراتژیست ──────────────────────────────────────────────────────── */
 

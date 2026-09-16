@@ -149,13 +149,14 @@ The three photographs — `hero.jpg`, `team.jpg`, `og-image.jpg` — sit at the 
 ## The blog pipeline (multi-agent)
 
 A second AI system lives beside the assistant and shares nothing with it but the
-OpenRouter key. `lib/blog/` writes the blog: eight agents, one orchestrator, a
+OpenRouter key. `lib/blog/` writes the blog: nine agents, one orchestrator, a
 studio to supervise it, and a memory that changes how the agents behave next
 time. Educational commentary in the source is in Persian; everything user-facing
 is English, like the rest of the site.
 
 ```
-idea-scout → strategist → researcher → writer ⇄ editor → seo → publisher → critic
+idea-scout ⇄ duplicate-check → strategist → researcher → writer ⇄ editor
+  → seo → publisher → critic
 ```
 
 **The orchestrator is code, and that is the point.** [lib/blog/agents/orchestrator.ts](lib/blog/agents/orchestrator.ts)
@@ -177,8 +178,28 @@ thinking and returns empty text with no error.
 **Validation rejects; normalisation repairs.** An over-long meta description
 once killed a run after six successful steps. Anything computable is computed
 ([seo-checks.ts](lib/blog/agents/seo-checks.ts)) and anything fixable is fixed
-(slug, metadata length) rather than thrown. The Zod schemas only stop what code
-cannot repair.
+(slug, metadata length, a missing H1) rather than thrown. The Zod schemas only
+stop what code cannot repair. `ensureH1` runs in the orchestrator *before* the
+SEO step, not after: the deterministic checks live inside that step, so a repair
+made later would leave `single-h1` failing and hold a good article for a human
+over a heading the code could have put back.
+
+**Nothing gets written twice.** Two articles once went out making the same
+argument under different titles, because "do not repeat these" lived only in the
+idea scout's prompt, next to a list of bare titles. A rule that exists only in a
+prompt is not a guarantee. It is now three layers: the scout sees each post's
+excerpt and keywords (a title does not say what an article covers) and has to
+name the closest one and what differs;
+[novelty.ts](lib/blog/agents/novelty.ts) drops obvious rewordings in code and
+shortlists the nearest posts; and `duplicate-check`, a one-question agent at
+temperature 0, judges the top candidates against that shortlist. Only the last
+layer can separate a repeat from a new angle on the same subject — on the pair
+that caused this, the lexical score is 0.41, and a genuinely different article
+about the same budget scores 0.40, so the threshold sits well above both and
+decides nothing in that band. Drafts count as published for this: they are
+waiting for a human, not gone. When nothing survives two rounds the run fails
+with what it rejected, because a blog repeating itself is worse than a week
+without a post.
 
 **The quality gate is two conditions, plus a third.** `shouldAutoPublish` needs
 score ≥ 75, verdict `approve`, and no failed check in `BLOCKING_CHECKS`. Below

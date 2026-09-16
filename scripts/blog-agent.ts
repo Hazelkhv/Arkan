@@ -2,6 +2,7 @@
  * تست مستقل ایجنت‌ها، بدون بالا آوردن Next و بدون دیتابیس.
  *
  *   npm run blog:agent -- idea
+ *   npm run blog:agent -- duplicate-check
  *   npm run blog:agent -- strategist
  *   npm run blog:agent -- researcher
  *   npm run blog:agent -- writer
@@ -19,6 +20,7 @@
  */
 
 import { runIdeaScout, pickBestIdea } from "@/lib/blog/agents/idea-scout";
+import { runDuplicateCheck } from "@/lib/blog/agents/duplicate-check";
 import { runStrategist } from "@/lib/blog/agents/strategist";
 import { runResearcher } from "@/lib/blog/agents/researcher";
 import { runWriter } from "@/lib/blog/agents/writer";
@@ -55,6 +57,8 @@ const FIXTURE_IDEA: Idea = {
   searchIntent: "informational",
   score: 9,
   reason: "Names a daily, recognisable symptom and leads straight to structure work.",
+  closestExisting: null,
+  differsFrom: "Nothing published looks at the decision bottleneck as a structural problem.",
 };
 
 const FIXTURE_BRIEF: Brief = {
@@ -138,7 +142,14 @@ async function main() {
   switch (command) {
     case "idea": {
       const result = await runIdeaScout({
-        recentTitles: ["Three signs your business model has stopped working"],
+        published: [
+          {
+            title: "Three signs your business model has stopped working",
+            excerpt:
+              "Revenue can hold steady while the model underneath it stops paying. Three symptoms that show up before the numbers do.",
+            keywords: ["business model", "stalled growth", "revenue"],
+          },
+        ],
         topicHint: hint,
         onTrace: trace,
       });
@@ -146,6 +157,42 @@ async function main() {
       console.log("\nBest:", pickBestIdea(result.ideas).title);
       break;
     }
+    /**
+     * داور را با یک ایده‌ی عمداً تکراری صدا می‌زنیم. اگر «distinct» گفت، دروازه
+     * باز است و ما خبر نداریم — همان حالتی که بی‌صدا خراب می‌شود.
+     */
+    case "duplicate-check":
+      console.dir(
+        await runDuplicateCheck({
+          idea: {
+            title: "Why your marketing spend is not producing sales",
+            angle:
+              "Businesses that keep raising the marketing budget while sales stay flat usually have a strategy problem, not a spend problem.",
+            searchIntent: "informational",
+            score: 8,
+            reason: "A common and recognisable complaint.",
+            closestExisting: null,
+            differsFrom: "It looks at spend rather than at customers.",
+          },
+          candidates: [
+            {
+              title: "Why Your Marketing Budget Isn't Delivering More Sales",
+              excerpt:
+                "Many businesses invest heavily in marketing but see stagnant sales. This article explains common reasons for ineffective marketing spend and outlines a strategic approach to drive real growth.",
+              keywords: ["marketing budget", "marketing spend", "sales growth"],
+            },
+            {
+              title: "Three signs your business model has stopped working",
+              excerpt:
+                "Revenue can hold steady while the model underneath it stops paying. Three symptoms that show up before the numbers do.",
+              keywords: ["business model", "stalled growth", "revenue"],
+            },
+          ],
+          onTrace: trace,
+        }),
+        { depth: null },
+      );
+      break;
     case "strategist":
       console.dir(await runStrategist({ idea: FIXTURE_IDEA, onTrace: trace }), {
         depth: null,

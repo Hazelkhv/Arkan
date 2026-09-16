@@ -1,5 +1,13 @@
 import { AgentError, type AgentTrace } from "@/lib/blog/ai";
 import { pickBestIdea, runIdeaScout } from "@/lib/blog/agents/idea-scout";
+import { runDuplicateCheck } from "@/lib/blog/agents/duplicate-check";
+import {
+  digestOf,
+  nearestTopics,
+  screenIdeas,
+  type Duplicate,
+  type TopicDigest,
+} from "@/lib/blog/agents/novelty";
 import { runStrategist } from "@/lib/blog/agents/strategist";
 import { runResearcher } from "@/lib/blog/agents/researcher";
 import { runWriter, runWriterRevision } from "@/lib/blog/agents/writer";
@@ -15,7 +23,7 @@ import type {
   PostRecord,
   RunRecord,
 } from "@/lib/blog/store/types";
-import type { Brief, EditorReport, Research } from "@/lib/blog/agents/types";
+import type { Brief, EditorReport, Idea, Research } from "@/lib/blog/agents/types";
 
 /**
  * ارکستریتور — مهم‌ترین فایل این پروژه، و تنها فایلی که در آن هیچ LLM‌ای نیست.
@@ -56,6 +64,15 @@ export const MAX_REVISION_ROUNDS = 2;
  * صفحه‌ی منتشرشده را واقعاً خراب می‌کنند، و علامت تعجب یک قاعده‌ی صریح برند است.
  */
 export const BLOCKING_CHECKS = ["single-h1", "slug-shape", "no-exclamation"];
+
+/**
+ * سقف تعداد ایده‌هایی که در هر دسته جلوی داورِ تکرار می‌روند.
+ *
+ * اگر سه ایده‌ی برترِ یک دسته هر سه تکراری باشند، مشکل آن دسته است نه آن سه ایده؛
+ * سراغ چهارمی رفتن فقط پول خرج می‌کند. بهتر است از ایده‌یاب دسته‌ی تازه بخواهیم و
+ * بگوییم چه چیزهایی رد شد.
+ */
+export const MAX_DUPLICATE_CHECKS = 3;
 
 /**
  * دروازه‌ی انتشار. تابع خالص است تا بدون صدا زدن هیچ مدلی تست شود.
@@ -164,6 +181,98 @@ class RunLog {
   }
 }
 
+/**
+ * انتخاب ایده‌ای که قبلاً ننوشته‌ایم — دو لایه، و یک شکست صریح.
+ *
+ * چرا اصلاً این همه دستگاه برای یک چیزِ به‌ظاهر ساده؟ چون نسخه‌ی قبلی همین را با
+ * یک جمله در پرامپت حل کرده بود («تکراری پیشنهاد نده، این هم عنوان‌های قبلی») و
+ * نتیجه دو مقاله بود که خواننده یکی‌شان را می‌خواند و دومی چیزی به او اضافه
+ * نمی‌کرد. قاعده‌ای که فقط در پرامپت است، تضمین نیست.
+ *
+ *   لایه‌ی اول (کد، رایگان)  — بازنویسی‌های آشکار را می‌اندازد بیرون.
+ *   لایه‌ی دوم (داور، ارزان) — از سه نامزد برتر می‌پرسد «این همان حرف است؟».
+ *   دور دوم                  — اگر هیچ‌کدام رد نشدند، ایده‌یاب با فهرست ردشده‌ها
+ *                              دوباره صدا زده می‌شود.
+ *   شکست                     — و اگر باز هم نه، اجرا با پیام روشن می‌ایستد.
+ *
+ * شکستن اجرا عمدی است. بدیلش انتشار یک تکرار است، و یک بلاگ که خودش را تکرار
+ * می‌کند بدتر از بلاگی است که این هفته چیزی منتشر نکرده.
+ */
+async function selectFreshIdea(input: {
+  log: RunLog;
+  published: TopicDigest[];
+  ideas: Idea[];
+  topicHint: string | null;
+}): Promise<Idea> {
+  const rejected: Duplicate[] = [];
+  let batch = input.ideas;
+
+  for (let round = 1; round <= 2; round++) {
+    const { fresh, rejected: repeats } = screenIdeas(batch, input.published);
+
+    if (repeats.length > 0) {
+      rejected.push(...repeats);
+      await input.log.note(
+        "orchestrator",
+        `Dropped ${repeats.length} idea(s) that reword a published article`,
+        repeats
+          .map((item) => `"${item.title}" ≈ "${item.closest}" (${item.similarity})`)
+          .join(" · "),
+        repeats,
+      );
+    }
+
+    for (const candidate of fresh.slice(0, MAX_DUPLICATE_CHECKS)) {
+      const verdict = await input.log.step(
+        "duplicate-check",
+        `Checking "${candidate.title}" against the blog`,
+        (onTrace) =>
+          runDuplicateCheck({
+            idea: candidate,
+            candidates: nearestTopics(candidate, input.published),
+            onTrace,
+          }),
+        (result) =>
+          result.verdict === "distinct"
+            ? `Distinct — ${result.reason}`
+            : `Repeats "${result.closest ?? "a published article"}" — ${result.reason}`,
+      );
+
+      if (verdict.verdict === "distinct") return candidate;
+
+      rejected.push({
+        title: candidate.title,
+        closest: verdict.closest ?? "a published article",
+        reason: verdict.reason,
+      });
+    }
+
+    if (round === 1) {
+      batch = (
+        await input.log.step(
+          "idea-scout",
+          "Looking for ground the blog has not covered",
+          (onTrace) =>
+            runIdeaScout({
+              published: input.published,
+              topicHint: input.topicHint,
+              rejected,
+              onTrace,
+            }),
+          (result) => `${result.ideas.length} more ideas, avoiding what was just rejected`,
+        )
+      ).ideas;
+    }
+  }
+
+  throw new AgentError(
+    `Every idea repeated something already on the blog (${rejected.length} rejected over two rounds). ` +
+      `Give the run a topic hint in the studio to point it somewhere new.`,
+    "idea-scout",
+    rejected,
+  );
+}
+
 export type PipelineResult = {
   run: RunRecord;
   post: PostRecord | null;
@@ -172,9 +281,11 @@ export type PipelineResult = {
 /**
  * یک اجرای کامل:
  *
- *   ایده‌یاب → استراتژیست → پژوهشگر → نویسنده ⇄ ویراستار → سئو → ناشر → منتقد
+ *   ایده‌یاب ⇄ داورِ تکرار → استراتژیست → پژوهشگر → نویسنده ⇄ ویراستار
+ *     → سئو → ناشر → منتقد
  *
- * فقط فلش دوطرفه بین نویسنده و ویراستار حلقه است؛ بقیه خطی است.
+ * دو فلش دوطرفه داریم و هر دو حلقه‌اند: ایده‌یاب/داور تا وقتی ایده‌ای پیدا شود که
+ * تکرار چیزی نباشد، و نویسنده/ویراستار تا وقتی مقاله به حد نصاب برسد. بقیه خطی است.
  */
 export async function runPipeline(options: {
   topicHint?: string | null;
@@ -192,13 +303,16 @@ export async function runPipeline(options: {
 
   try {
     /* ── ۱. ایده‌یاب ─────────────────────────────────────────────────────── */
-    const recent = await store.listPosts({ limit: 20 });
+    // پیش‌نویس‌ها هم می‌آیند، نه فقط منتشرشده‌ها: پیش‌نویسی که منتظر تأیید انسان است
+    // فردا منتشر می‌شود، و نوشتن دوباره‌ی همان موضوع یعنی دو مقاله‌ی هم‌حرف در صف.
+    const published = (await store.listPosts({ limit: 50 })).map(digestOf);
+
     const ideas = await log.step(
       "idea-scout",
       "Finding topics worth writing about",
       (onTrace) =>
         runIdeaScout({
-          recentTitles: recent.map((item) => item.title),
+          published,
           topicHint: run.topicHint,
           onTrace,
         }),
@@ -208,8 +322,13 @@ export async function runPipeline(options: {
         }/10)`,
     );
 
-    // انتخاب، کارِ کد است. مدل امتیاز داد؛ ما مرتب می‌کنیم.
-    const idea = pickBestIdea(ideas.ideas);
+    // انتخاب، کارِ کد است. مدل امتیاز داد؛ ما مرتب می‌کنیم و تکراری‌ها را می‌اندازیم.
+    const idea = await selectFreshIdea({
+      log,
+      published,
+      ideas: ideas.ideas,
+      topicHint: run.topicHint,
+    });
 
     /* ── ۲. استراتژیست ──────────────────────────────────────────────────── */
     const brief: Brief = await log.step(

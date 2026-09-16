@@ -4,6 +4,14 @@ import { test } from "node:test";
 import { extractJsonBlock } from "@/lib/blog/ai";
 import { buildSystemPrompt } from "@/lib/blog/agents/lessons";
 import { pickBestIdea } from "@/lib/blog/agents/idea-scout";
+import {
+  DUPLICATE_THRESHOLD,
+  nearestTopics,
+  pickFreshIdea,
+  similarity,
+  topicTokens,
+  type TopicDigest,
+} from "@/lib/blog/agents/novelty";
 import { shouldAutoPublish, APPROVE_THRESHOLD } from "@/lib/blog/agents/orchestrator";
 import {
   clampToLength,
@@ -80,15 +88,123 @@ test("the quality gate needs both the score and the verdict", () => {
 
 /* ── انتخاب ایده ────────────────────────────────────────────────────────── */
 
+/**
+ * کمترین چیزی که یک ایده هست.
+ *
+ * closestExisting و differsFrom برای انتخاب بهترین ایده بی‌اثرند — آن‌ها کار
+ * ایده‌یاب‌اند تا تکراری نسازد — ولی چون بخشی از تایپ‌اند، اینجا یک‌بار نوشته
+ * می‌شوند تا سه ایده‌ی تست، تفاوتشان فقط همان چیزی باشد که تست درباره‌اش است.
+ */
+const idea = (title: string, score: number, angle = "x"): Idea => ({
+  title,
+  angle,
+  searchIntent: "how-to",
+  score,
+  reason: "r",
+  closestExisting: null,
+  differsFrom: "nothing published covers it",
+});
+
 test("the highest-scoring idea wins, and the choice is made in code", () => {
-  const ideas: Idea[] = [
-    { title: "a", angle: "x", searchIntent: "how-to", score: 6, reason: "r" },
-    { title: "b", angle: "x", searchIntent: "how-to", score: 9, reason: "r" },
-    { title: "c", angle: "x", searchIntent: "how-to", score: 8, reason: "r" },
-  ];
+  const ideas: Idea[] = [idea("a", 6), idea("b", 9), idea("c", 8)];
   assert.equal(pickBestIdea(ideas).title, "b");
   // ورودی نباید جابه‌جا شود — گزارش اجرا همان ترتیب مدل را نشان می‌دهد.
   assert.equal(ideas[0].title, "a");
+});
+
+/* ── دروازه‌ی تکرار ─────────────────────────────────────────────────────── */
+
+/**
+ * این بخش از یک باگ واقعی آمده: دو مقاله‌ی منتشرشده که عنوانشان فرق داشت و
+ * حرفشان یکی بود. عددهای این تست‌ها روی همان جفت اندازه‌گیری شده‌اند.
+ */
+const PUBLISHED: TopicDigest[] = [
+  {
+    title: "Why Your Marketing Budget Isn't Delivering More Sales",
+    excerpt:
+      "Many businesses invest heavily in marketing but see stagnant sales. This article explains common reasons for ineffective marketing spend and outlines a strategic approach to drive real growth.",
+    keywords: ["marketing budget", "marketing spend", "sales growth"],
+  },
+  {
+    title: "Why your team keeps waiting for you to decide",
+    excerpt:
+      "Founders of 20-person businesses often mistake a decision bottleneck for a talent problem. The fix is structural, not personal.",
+    keywords: ["decision bottleneck", "delegation"],
+  },
+];
+
+test("the vocabulary every consulting article shares is stripped before comparing", () => {
+  // بدون این، «business» و «growth» هر دو مقاله را شبیه هم نشان می‌دهند.
+  const tokens = topicTokens("Why your business keeps growing slower than your costs");
+  assert.equal(tokens.has("business"), false);
+  assert.equal(tokens.has("growing"), false);
+  assert.equal(tokens.has("cost"), true);
+  // جمع و مفرد یکی شمرده می‌شوند، وگرنه customers با customer برخورد نمی‌کند.
+  assert.deepEqual(topicTokens("ideal customers"), topicTokens("ideal customer"));
+});
+
+test("a reworded version of a published article is caught without a model", () => {
+  const reworded = idea(
+    "Why your marketing spend is not producing sales",
+    9,
+    "Businesses that invest heavily in marketing and still see stagnant sales usually have a strategy problem, not a spend problem.",
+  );
+  assert.ok(similarity(reworded, PUBLISHED[0]) >= DUPLICATE_THRESHOLD);
+
+  const picked = pickFreshIdea(
+    [reworded, idea("What to do when your best salesperson leaves", 7)],
+    PUBLISHED,
+  );
+  assert.equal(picked.idea?.title, "What to do when your best salesperson leaves");
+  assert.equal(picked.rejected[0].closest, PUBLISHED[0].title);
+});
+
+test("a genuinely different article on the same subject is left to the judge", () => {
+  // عمدی: در این ناحیه شباهت واژگانی بین تکرار و نوآوری فرق معناداری نمی‌گذارد،
+  // پس کد تصمیم نمی‌گیرد و ایده را می‌فرستد جلوی داور.
+  const sameSubject = idea(
+    "Which marketing channel to cut first when the budget shrinks",
+    9,
+    "A practical order of operations for deciding what to stop spending on, based on payback period rather than on which channel feels busiest.",
+  );
+  assert.ok(similarity(sameSubject, PUBLISHED[0]) < DUPLICATE_THRESHOLD);
+  assert.equal(pickFreshIdea([sameSubject], PUBLISHED).idea?.title, sameSubject.title);
+});
+
+test("when every idea rewords something, nothing is picked", () => {
+  const repeats = [
+    idea(
+      "Why your marketing spend is not producing sales",
+      9,
+      "Businesses that invest heavily in marketing and still see stagnant sales usually have a strategy problem, not a spend problem.",
+    ),
+    idea(
+      "Why your team keeps waiting for you to decide things",
+      8,
+      "Founders of 20-person businesses often mistake a decision bottleneck for a talent problem. The fix is structural.",
+    ),
+  ];
+  const picked = pickFreshIdea(repeats, PUBLISHED);
+  assert.equal(picked.idea, null);
+  assert.equal(picked.rejected.length, 2);
+});
+
+test("the judge is handed the nearest posts, and only the related ones", () => {
+  const marketing = idea(
+    "Which marketing channel to cut first when the budget shrinks",
+    9,
+    "Deciding what to stop spending on, based on payback period.",
+  );
+  const nearest = nearestTopics(marketing, PUBLISHED);
+  assert.equal(nearest[0].title, PUBLISHED[0].title);
+  // مقاله‌ی بی‌ربط اصلاً جلوی داور نمی‌رود؛ خواندنش فقط پول است.
+  assert.equal(nearest.length, 1);
+});
+
+test("an empty blog rejects nothing and asks nobody", () => {
+  const first = idea("Three signs your business model has stopped working", 8);
+  assert.equal(pickFreshIdea([first], []).idea?.title, first.title);
+  assert.equal(nearestTopics(first, []).length, 0);
 });
 
 /* ── ابزارهای متن ───────────────────────────────────────────────────────── */
