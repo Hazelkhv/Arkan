@@ -111,6 +111,15 @@ export interface BlogStore {
   getPost(id: string): Promise<PostRecord | null>;
   getPostBySlug(slug: string): Promise<PostRecord | null>;
   listPosts(options?: { status?: PostStatus; limit?: number }): Promise<PostRecord[]>;
+  /**
+   * حذف کامل یک مقاله.
+   *
+   * در Supabase، بازخوردهای همان مقاله با ON DELETE CASCADE پاک می‌شوند و
+   * blog_runs.post_id به NULL می‌رود — یعنی تاریخچه‌ی اجرا می‌ماند، فقط مقاله
+   * نمی‌ماند. آداپتور حافظه باید همین رفتار را دستی تقلید کند وگرنه دو
+   * پیاده‌سازی واگرا می‌شوند.
+   */
+  deletePost(id: string): Promise<void>;
 
   listLessons(options?: {
     agent?: AgentName;

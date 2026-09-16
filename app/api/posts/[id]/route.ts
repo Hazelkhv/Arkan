@@ -72,3 +72,35 @@ export async function PATCH(
 
   return Response.json({ post });
 }
+
+/**
+ * حذف کامل مقاله — تنها راهِ «این یکی اصلاً نباید می‌بود».
+ *
+ * چرا حذف و نه فقط پیش‌نویس؟ چون پیش‌نویس یعنی «هنوز آماده نیست» و فهرست
+ * استودیو را شلوغ می‌کند؛ گاهی مقاله‌ای باید برود تا موضوعش دوباره نوشته شود.
+ * بازخوردهای همان مقاله هم با آن می‌روند، ولی درس‌هایی که از آن‌ها ساخته شده
+ * می‌مانند: درس، دیگر به مقاله وابسته نیست و پاک کردنش کارِ تب درس‌هاست.
+ *
+ * همان سه revalidate مثل PATCH، و به همان دلیل: صفحه‌ی اصلی استاتیک است و اگر
+ * این خط نباشد، مقاله‌ی حذف‌شده همچنان در بخش Insight دیده می‌شود.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const denied = await guardStudioRoute();
+  if (denied) return denied;
+
+  const { id } = await params;
+
+  const existing = await getStore().getPost(id);
+  if (!existing) return Response.json({ error: "Unknown post." }, { status: 404 });
+
+  await getStore().deletePost(id);
+
+  revalidatePath("/");
+  revalidatePath("/blog");
+  revalidatePath(`/blog/${existing.slug}`);
+
+  return Response.json({ ok: true });
+}

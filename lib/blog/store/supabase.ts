@@ -190,6 +190,16 @@ export const supabaseStore: BlogStore = {
     return (data ?? []).map(toPost);
   },
 
+  /**
+   * حذف مقاله. بازخوردها با ON DELETE CASCADE و blog_runs.post_id با
+   * ON DELETE SET NULL در خودِ اسکیما تمیز می‌شوند (supabase/blog.sql) — پس
+   * اینجا یک دستور بیشتر لازم نیست.
+   */
+  async deletePost(id) {
+    const { error } = await db().from(POSTS).delete().eq("id", id);
+    if (error) fail("deleting a post", error);
+  },
+
   async listLessons(options = {}) {
     let query = db().from(LESSONS).select().order("created_at", { ascending: false });
     if (options.agent) query = query.eq("agent", options.agent);

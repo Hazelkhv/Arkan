@@ -105,6 +105,26 @@ test("a draft is invisible to the published listing", async () => {
   assert.ok(after.some((item) => item.id === post.id));
 });
 
+test("deleting a post takes its feedback with it and frees its slug", async () => {
+  const store = getStore();
+  const run = await store.createRun("a topic");
+  const post = await store.createPost({ ...draft("about-to-go"), runId: run.id });
+  await store.updateRun(run.id, { postId: post.id });
+  await store.addFeedback({ postId: post.id, rating: "down", comment: "Too vague." });
+
+  await store.deletePost(post.id);
+
+  assert.equal(await store.getPost(post.id), null);
+  assert.equal(await store.getPostBySlug("about-to-go"), null);
+  // بازخوردِ یتیم فقط زباله نیست: منتقد دوباره می‌خواندش و از مقاله‌ای که دیگر
+  // وجود ندارد درس می‌سازد. در Supabase این کار را CASCADE می‌کند.
+  assert.deepEqual(await store.listFeedback(post.id), []);
+  // اجرا می‌ماند، ارجاعش نه — تاریخچه‌ی خط تولید با مقاله پاک نمی‌شود.
+  assert.equal((await store.getRun(run.id))?.postId, null);
+  // و اسلاگ دوباره آزاد است، پس همان موضوع را می‌شود از نو نوشت.
+  assert.equal(await ensureUniqueSlug(store, "about-to-go"), "about-to-go");
+});
+
 test("the lesson cap retires the oldest, and retiring is not deleting", async () => {
   const store = getStore();
   const total = MAX_ACTIVE_LESSONS + 3;

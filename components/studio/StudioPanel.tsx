@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { studio } from "@/lib/content";
 import type {
@@ -26,16 +26,75 @@ type Tab = "run" | "posts" | "lessons";
 
 type PostSummary = Omit<PostRecord, "contentMd">;
 
+/**
+ * چند وقت به یک بار، و تا کِی، سراغ درس‌ها برویم.
+ *
+ * بازخورد در `after()` به منتقد می‌رسد؛ یعنی وقتی دکمه جواب داده، درس هنوز ساخته
+ * نشده است. یک مدل چند ثانیه تا کمتر از یک دقیقه طول می‌کشد، پس ۲۰ بار هر ۳
+ * ثانیه یعنی یک دقیقه صبر — و بعد از آن دست می‌کشیم و پیام «چیزی اضافه نشد»
+ * می‌دهیم، که برای بازخورد مثبتِ بدون توضیح پاسخِ درستی هم هست: منتقد اجازه دارد
+ * هیچ درسی ننویسد.
+ */
+const LESSON_POLL_MS = 3000;
+const LESSON_POLL_ATTEMPTS = 20;
+
 export function StudioPanel({
   storeKind,
   posts,
-  lessons,
+  lessons: initialLessons,
 }: {
   storeKind: "memory" | "supabase";
   posts: PostSummary[];
   lessons: LessonRecord[];
 }) {
   const [tab, setTab] = useState<Tab>("run");
+
+  /**
+   * درس‌ها اینجا بالا نگه داشته می‌شوند، نه داخل تبِ خودشان.
+   *
+   * چون ثبت بازخورد در تبِ «پست‌ها» اتفاق می‌افتد ولی نتیجه‌اش در تبِ «درس‌ها»
+   * ظاهر می‌شود. اگر هر تب داده‌ی خودش را داشت، تنها راهِ دیدنِ درسِ تازه
+   * رفرش کردن صفحه بود — و کاربر حق داشت فکر کند بازخوردش جایی نرفته است.
+   */
+  const [lessons, setLessons] = useState<LessonRecord[]>(initialLessons);
+  const [unseenLessons, setUnseenLessons] = useState(0);
+  // ref در کنار state: حلقه‌ی polling نباید به مقدارِ بسته‌شده در closure تکیه کند.
+  const lessonsRef = useRef<LessonRecord[]>(initialLessons);
+
+  const applyLessons = useCallback((next: LessonRecord[]) => {
+    lessonsRef.current = next;
+    setLessons(next);
+  }, []);
+
+  const loadLessons = useCallback(async () => {
+    const response = await fetch("/api/lessons", { cache: "no-store" });
+    const data = (await response.json()) as { lessons: LessonRecord[] };
+    applyLessons(data.lessons);
+    return data.lessons;
+  }, [applyLessons]);
+
+  /** بعد از ثبت بازخورد: منتظر درسِ منتقد می‌مانیم و تا آمدنش خبر می‌دهیم. */
+  const waitForLesson = useCallback(async (): Promise<"added" | "none"> => {
+    const known = new Set(lessonsRef.current.map((lesson) => lesson.id));
+
+    for (let attempt = 0; attempt < LESSON_POLL_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, LESSON_POLL_MS));
+      const fresh = await loadLessons();
+      const added = fresh.filter((lesson) => !known.has(lesson.id));
+      if (added.length > 0) {
+        setUnseenLessons((count) => count + added.length);
+        return "added";
+      }
+    }
+
+    return "none";
+  }, [loadLessons]);
+
+  function openTab(value: Tab) {
+    setTab(value);
+    // نشانِ «تازه» تا وقتی معنا دارد که کاربر هنوز نگاهشان نکرده باشد.
+    if (value === "lessons") setUnseenLessons(0);
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-10 md:px-8">
@@ -58,7 +117,7 @@ export function StudioPanel({
           <button
             key={value}
             type="button"
-            onClick={() => setTab(value)}
+            onClick={() => openTab(value)}
             aria-current={tab === value ? "page" : undefined}
             className={`-mb-px min-h-11 border-b-2 px-4 text-[0.9375rem] font-semibold transition-colors duration-200 ${
               tab === value
@@ -67,14 +126,20 @@ export function StudioPanel({
             }`}
           >
             {label}
+            {/* شمارش با متن همراه است، نه فقط یک نقطه‌ی رنگی. */}
+            {value === "lessons" && unseenLessons > 0 && (
+              <span className="ms-2 rounded-btn bg-pine px-2 py-0.5 text-caption font-semibold text-bone">
+                {unseenLessons} {studio.lessonsNewBadge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
 
       <div className="py-8">
         {tab === "run" && <RunTab />}
-        {tab === "posts" && <PostsTab initial={posts} />}
-        {tab === "lessons" && <LessonsTab initial={lessons} />}
+        {tab === "posts" && <PostsTab initial={posts} onFeedbackSent={waitForLesson} />}
+        {tab === "lessons" && <LessonsTab lessons={lessons} onReload={loadLessons} />}
       </div>
     </main>
   );
@@ -236,7 +301,13 @@ function StepRow({ step }: { step: PipelineStep }) {
 
 /* ── پست‌ها ─────────────────────────────────────────────────────────────── */
 
-function PostsTab({ initial }: { initial: PostSummary[] }) {
+function PostsTab({
+  initial,
+  onFeedbackSent,
+}: {
+  initial: PostSummary[];
+  onFeedbackSent: () => Promise<"added" | "none">;
+}) {
   /**
    * داده‌ی اولیه از سرور می‌آید، نه از یک fetch در useEffect.
    *
@@ -246,6 +317,15 @@ function PostsTab({ initial }: { initial: PostSummary[] }) {
    */
   const [posts, setPosts] = useState<PostSummary[]>(initial);
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * حذف، دو کلیک لازم دارد و دومی جای اولی می‌نشیند.
+   *
+   * نه `confirm()` مرورگر: آن دیالوگ خارج از صفحه است، استایل ندارد، در بعضی
+   * مرورگرها بلاک می‌شود و مهم‌تر — هیچ‌جا نمی‌شود نوشت که دقیقاً چه چیزی
+   * پاک می‌شود. اینجا هشدارِ متنی کنار همان دکمه است.
+   */
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/posts", { cache: "no-store" });
@@ -264,77 +344,166 @@ function PostsTab({ initial }: { initial: PostSummary[] }) {
     setBusy(null);
   }
 
+  async function remove(id: string) {
+    setBusy(id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/posts/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(studio.deletePostFailed);
+      // خوش‌بینانه پاک نمی‌کنیم: فهرست دوباره از سرور خوانده می‌شود تا آنچه
+      // می‌بینیم همان چیزی باشد که در دیتابیس هست.
+      await load();
+      setConfirming(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : studio.deletePostFailed);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (posts.length === 0) return <p className="text-slate">{studio.postsEmpty}</p>;
 
   return (
-    <ul className="grid gap-4">
-      {posts.map((post) => (
-        <li key={post.id} className="rounded-card border border-sand bg-white p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h3 className="text-[1.0625rem] font-semibold text-ink">{post.title}</h3>
-            <p className="text-caption tabular text-slate">
-              {post.status} · {post.score}/100
-            </p>
-          </div>
-          <p className="mt-2 text-caption text-slate">{post.excerpt}</p>
+    <>
+      {error && (
+        <p role="alert" className="mb-4 text-caption text-clay">
+          {error}
+        </p>
+      )}
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {post.status === "draft" ? (
-              <Button
-                size="sm"
-                type="button"
-                disabled={busy === post.id}
-                onClick={() => setStatus(post.id, "published")}
-              >
-                {studio.publish}
-              </Button>
-            ) : (
-              <>
+      <ul className="grid gap-4">
+        {posts.map((post) => (
+          <li key={post.id} className="rounded-card border border-sand bg-white p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h3 className="text-[1.0625rem] font-semibold text-ink">{post.title}</h3>
+              <p className="text-caption tabular text-slate">
+                {post.status} · {post.score}/100
+              </p>
+            </div>
+            <p className="mt-2 text-caption text-slate">{post.excerpt}</p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {post.status === "draft" ? (
                 <Button
                   size="sm"
-                  variant="secondary"
                   type="button"
                   disabled={busy === post.id}
-                  onClick={() => setStatus(post.id, "draft")}
+                  onClick={() => setStatus(post.id, "published")}
                 >
-                  {studio.unpublish}
+                  {studio.publish}
                 </Button>
-                <a
-                  href={`/blog/${post.slug}`}
-                  className="inline-flex min-h-11 items-center px-3 text-[0.9375rem] font-semibold text-pine underline underline-offset-4"
-                >
-                  {studio.view}
-                </a>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    type="button"
+                    disabled={busy === post.id}
+                    onClick={() => setStatus(post.id, "draft")}
+                  >
+                    {studio.unpublish}
+                  </Button>
+                  <a
+                    href={`/blog/${post.slug}`}
+                    className="inline-flex min-h-11 items-center px-3 text-[0.9375rem] font-semibold text-pine underline underline-offset-4"
+                  >
+                    {studio.view}
+                  </a>
+                </>
+              )}
 
-          <FeedbackForm postId={post.id} />
-        </li>
-      ))}
-    </ul>
+              {confirming === post.id ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy === post.id}
+                    onClick={() => remove(post.id)}
+                    className="ms-auto min-h-11 px-3 text-[0.9375rem] font-semibold text-clay underline underline-offset-4 disabled:opacity-60"
+                  >
+                    {studio.deletePostConfirm}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(null)}
+                    className="min-h-11 px-3 text-[0.9375rem] font-semibold text-pine underline underline-offset-4"
+                  >
+                    {studio.deletePostCancel}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setConfirming(post.id);
+                  }}
+                  className="ms-auto min-h-11 px-3 text-[0.9375rem] font-semibold text-clay underline underline-offset-4"
+                >
+                  {studio.deletePost}
+                </button>
+              )}
+            </div>
+
+            {/* هشدار فقط وقتی دیده می‌شود که کاربر واقعاً در آستانه‌ی حذف است. */}
+            {confirming === post.id && (
+              <p className="mt-2 text-caption text-clay">{studio.deletePostWarning}</p>
+            )}
+
+            <FeedbackForm postId={post.id} onSent={onFeedbackSent} />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
-/** 👍/👎 + توضیح → منتقد → درس. */
-function FeedbackForm({ postId }: { postId: string }) {
+/**
+ * 👍/👎 + توضیح → منتقد → درس.
+ *
+ * فرستادن بازخورد سریع است (فقط یک insert)، ولی درسی که از آن ساخته می‌شود در
+ * `after()` و با یک فراخوانی مدل ساخته می‌شود — چند ثانیه بعد از اینکه دکمه
+ * جواب داده است. پس پیام «فرستاده شد» تمامِ داستان نیست: تا وقتی درس برسد
+ * منتظر می‌مانیم و بعد می‌گوییم کجا بنشیند نگاهش کند.
+ */
+function FeedbackForm({
+  postId,
+  onSent,
+}: {
+  postId: string;
+  onSent: () => Promise<"added" | "none">;
+}) {
   const [comment, setComment] = useState("");
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState<"idle" | "sending" | "waiting" | "added" | "none">(
+    "idle",
+  );
 
   async function send(rating: "up" | "down") {
-    setBusy(true);
+    setState("sending");
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ postId, rating, comment }),
     });
-    setBusy(false);
-    setSent(true);
     setComment("");
+    setState("waiting");
+    setState(await onSent());
   }
 
-  if (sent) return <p className="mt-4 text-caption text-pine">{studio.feedbackThanks}</p>;
+  if (state === "waiting") {
+    return (
+      <p aria-live="polite" className="mt-4 text-caption text-pine">
+        {studio.feedbackThanks}
+      </p>
+    );
+  }
+
+  if (state === "added" || state === "none") {
+    return (
+      <p aria-live="polite" className="mt-4 text-caption text-pine">
+        {state === "added" ? studio.feedbackLessonAdded : studio.feedbackNoLesson}
+      </p>
+    );
+  }
 
   return (
     <div className="mt-5 border-t border-sand pt-4">
@@ -349,10 +518,22 @@ function FeedbackForm({ postId }: { postId: string }) {
         className="mt-2 w-full rounded-btn border border-slate/40 bg-white p-3 text-caption text-ink focus:border-brass focus:outline-none focus-visible:ring-2 focus-visible:ring-pine"
       />
       <div className="mt-2 flex gap-2">
-        <Button size="sm" variant="secondary" type="button" disabled={busy} onClick={() => send("up")}>
+        <Button
+          size="sm"
+          variant="secondary"
+          type="button"
+          disabled={state === "sending"}
+          onClick={() => send("up")}
+        >
           {studio.feedbackUp}
         </Button>
-        <Button size="sm" variant="secondary" type="button" disabled={busy} onClick={() => send("down")}>
+        <Button
+          size="sm"
+          variant="secondary"
+          type="button"
+          disabled={state === "sending"}
+          onClick={() => send("down")}
+        >
           {studio.feedbackDown}
         </Button>
       </div>
@@ -362,18 +543,16 @@ function FeedbackForm({ postId }: { postId: string }) {
 
 /* ── درس‌ها ─────────────────────────────────────────────────────────────── */
 
-function LessonsTab({ initial }: { initial: LessonRecord[] }) {
-  const [lessons, setLessons] = useState<LessonRecord[]>(initial);
-
-  const load = useCallback(async () => {
-    const response = await fetch("/api/lessons", { cache: "no-store" });
-    const data = (await response.json()) as { lessons: LessonRecord[] };
-    setLessons(data.lessons);
-  }, []);
-
+function LessonsTab({
+  lessons,
+  onReload,
+}: {
+  lessons: LessonRecord[];
+  onReload: () => Promise<LessonRecord[]>;
+}) {
   async function remove(id: string) {
     await fetch(`/api/lessons?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    await load();
+    await onReload();
   }
 
   return (

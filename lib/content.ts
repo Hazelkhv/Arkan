@@ -34,7 +34,7 @@ export const nav = [
   { label: "Services", href: "/#services" },
   { label: "Process", href: "/#process" },
   { label: "About", href: "/#about" },
-  { label: "Insight", href: "/blog" },
+  { label: "Blog", href: "/blog" },
   { label: "Ask Arkan", href: "/consultant" },
   { label: "Contact", href: "/#contact" },
 ] as const;
@@ -42,7 +42,7 @@ export const nav = [
 /**
  * Header and footer now carry the same six links.
  *
- * Insight used to be footer-only, on the argument that the header is the
+ * The blog used to be footer-only, on the argument that the header is the
  * conversion path and reading material belongs a level down. The articles
  * earned the promotion: they are the only thing on the site a visitor who is
  * not ready to enquire can do, and the home page section that previews them
@@ -339,7 +339,7 @@ export const seo = {
  * is the brand's, and it is edited like any other page.
  */
 export const blog = {
-  eyebrow: "Insight",
+  eyebrow: "Blog",
   title: "Notes on growing a business that stalled",
   intro:
     "Short pieces for founders and managers whose business earns well and has stopped moving. Written by Arkan, published here as we go.",
@@ -387,12 +387,21 @@ export const studio = {
   publish: "Publish",
   unpublish: "Move to draft",
   view: "View",
+  deletePost: "Delete",
+  deletePostConfirm: "Delete for good",
+  deletePostCancel: "Keep it",
+  deletePostWarning:
+    "The article and its feedback go. Lessons the critic already learned from it stay.",
+  deletePostFailed: "Could not delete that post.",
   deleteLesson: "Delete",
   feedbackUp: "Good article",
   feedbackDown: "Needs work",
   feedbackCommentPlaceholder: "What should the agents do differently?",
   feedbackSend: "Send to the critic",
-  feedbackThanks: "Sent. The critic will turn this into a lesson.",
+  feedbackThanks: "Sent. The critic is reading it…",
+  feedbackLessonAdded: "A new lesson is waiting in Lessons.",
+  feedbackNoLesson: "Saved. The critic found nothing durable to add this time.",
+  lessonsNewBadge: "new",
   storageMemory: "In-memory storage — data is lost when the server restarts.",
   storageSupabase: "Supabase — data persists.",
 } as const;

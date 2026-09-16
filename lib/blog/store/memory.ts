@@ -139,6 +139,25 @@ export const memoryStore: BlogStore = {
     return newest(rows).slice(0, options.limit ?? 100).map(clone);
   },
 
+  /**
+   * حذف مقاله، به‌علاوه‌ی هر چیزی که در Supabase با CASCADE پاک می‌شد.
+   *
+   * بازخوردهای یتیم، نه فقط زباله‌اند: منتقد آن‌ها را دوباره می‌خواند و درس
+   * می‌سازد. پس همان‌جا که مقاله می‌رود، بازخوردش هم باید برود. اجرا (run) اما
+   * می‌ماند و فقط postId‌اش خالی می‌شود — تاریخچه‌ی خط تولید پاک‌کردنی نیست.
+   */
+  async deletePost(id) {
+    db().posts.delete(id);
+
+    for (const [key, row] of db().feedback) {
+      if (row.postId === id) db().feedback.delete(key);
+    }
+
+    for (const [key, run] of db().runs) {
+      if (run.postId === id) db().runs.set(key, { ...run, postId: null });
+    }
+  },
+
   async listLessons(options = {}) {
     const rows = [...db().lessons.values()].filter((lesson) => {
       if (options.agent && lesson.agent !== (options.agent as AgentName)) return false;
