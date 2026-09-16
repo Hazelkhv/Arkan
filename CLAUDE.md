@@ -146,8 +146,6 @@ Route-level components use Next 16's generated prop types (e.g. `LayoutProps<"/"
 
 The three photographs — `hero.jpg`, `team.jpg`, `og-image.jpg` — sit at the repo root as originals, with the served copies in `public/`. `favicon.svg` at the root has no `public/` copy: [app/icon.svg](app/icon.svg) is what the App Router serves as the favicon. Alt text for the photos is in `lib/content.ts`, not written inline.
 
-<!-- BEGIN:nextjs-agent-rules -->
-
 ## The blog pipeline (multi-agent)
 
 A second AI system lives beside the assistant and shares nothing with it but the
@@ -218,6 +216,8 @@ the assistant. RLS enabled, no policies, same rule as the assistant's tables.
 
 Test an agent on its own with `npm run blog:agent -- <agent>`; it forces the
 in-memory store so it can never write to the live database.
+
+<!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
 
