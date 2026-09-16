@@ -1,4 +1,5 @@
 import { requireAdminDb } from "@/lib/ai/admin-client";
+import type { Language } from "@/lib/ai/language";
 import type { Channel } from "@/lib/ai/types";
 import { businessStages, contactTimes } from "@/lib/content";
 import { notifyNewLead, saveLead, toLeadRow } from "@/lib/server-leads";
@@ -21,7 +22,23 @@ import type { ToolCall, ToolDefinition } from "@/lib/ai/generate";
 export type ToolContext = {
   conversationId: string;
   channel: Channel;
+  /**
+   * The language this turn is being answered in.
+   *
+   * A tool result is an instruction to the model, not text a visitor reads, so
+   * it stays in English. It carries the language so the sentence the model
+   * writes from it does not: a Persian conversation that confirms a lead in
+   * English is the moment the visitor stops trusting it.
+   */
+  language: Language;
 };
+
+/** Repeated in every tool result, because that is the sentence the visitor reads. */
+function replyIn(language: Language): string {
+  return language === "fa"
+    ? " Write your reply to the visitor entirely in Persian."
+    : " Write your reply to the visitor entirely in English.";
+}
 
 export type ToolResult = {
   /** Returned to the model as the tool message. */
@@ -164,7 +181,8 @@ async function captureLead(
     return {
       content:
         `The request was not saved. Ask the visitor for what is missing or ` +
-        `unclear, then call capture_lead again. Problems — ${problems}`,
+        `unclear, then call capture_lead again. Problems — ${problems}` +
+        replyIn(context.language),
       label: "Consultation request incomplete",
     };
   }
@@ -184,7 +202,8 @@ async function captureLead(
     return {
       content:
         "Saving the request failed. Apologise briefly, and give the visitor " +
-        "the email address and phone number so they can reach the team directly.",
+        "the email address and phone number so they can reach the team directly." +
+        replyIn(context.language),
       label: "Could not save the request",
     };
   }
@@ -193,9 +212,15 @@ async function captureLead(
 
   return {
     content:
+      // "One business day", not "24 business hours". Both were in the codebase
+      // and they are the same promise said two ways — the site, the form's
+      // success message and the Process section all say one business day, so
+      // that is the one a visitor can be shown twice without noticing a
+      // discrepancy.
       "The consultation request was saved. Confirm it in one sentence and " +
-      "tell them the team will be in touch within 24 business hours. The " +
-      "first conversation is free. Do not ask for the same details again.",
+      "tell them the team will get back to them within one business day. The " +
+      "first conversation is free. Do not ask for the same details again." +
+      replyIn(context.language),
     label: "Consultation request sent",
     leadCaptured: true,
   };
@@ -229,7 +254,8 @@ async function requestHuman(
     content:
       "A colleague has been notified and will follow up. Tell the visitor " +
       "that, ask for the best way to reach them if you do not already have " +
-      "it, and stay helpful in the meantime.",
+      "it, and stay helpful in the meantime." +
+      replyIn(context.language),
     label: "Passed to the team",
     handoffReason: reason,
   };

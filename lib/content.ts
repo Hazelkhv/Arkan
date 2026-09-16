@@ -232,8 +232,19 @@ export const assistant = {
   send: "Send",
   sending: "Sending",
   replying: "Arkan's assistant is replying",
+  /**
+   * Bilingual, and the only string on the site that is.
+   *
+   * The site is English throughout and stays that way, but the assistant
+   * answers in whichever language it is asked in — and a visitor in Tehran has
+   * no way of knowing that from an English panel. One Persian line is what
+   * tells them, and it is the first thing they read.
+   *
+   * Two paragraphs rather than two lines: Prose gives each paragraph its own
+   * `dir="auto"`, so the Persian one lays out right-to-left on its own.
+   */
   greeting:
-    "Hello — I am Arkan's assistant. I answer from the firm's own material, and I say so when something is not in it.",
+    "Hello — I am Arkan's assistant. I answer from the firm's own material, and I say so when something is not in it.\n\nسلام — من دستیار آرکان هستم. می‌توانید به فارسی بپرسید؛ پاسخ را هم به فارسی می‌دهم.",
   menuHeading: "What can I help you with?",
   menuHint: "Pick an area, or ask your own question.",
   topicPrefix: "Tell me about",
@@ -250,8 +261,12 @@ export const assistant = {
   sourcesLabel: "Sources",
   sourcesEmpty: "No source in the knowledge base covered this.",
   ctaHeading: "Ready to talk to someone?",
+  // "One business day", matching the Process section and the form's success
+  // message. The brief writes it as "24 business hours"; the site has always
+  // said it the other way, and a visitor who reads both should not have to work
+  // out whether they are the same promise.
   ctaBody:
-    "The first conversation is free, and the team replies within 24 business hours.",
+    "The first conversation is free, and the team gets back to you within one business day.",
   cta: "Request a Consultation",
   newConversation: "Start a new conversation",
   /** The launcher splits 24rem between two buttons; the long label wraps there. */

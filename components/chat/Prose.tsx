@@ -11,6 +11,15 @@ import { Fragment, type ReactNode } from "react";
  * builds React elements, so text from a model — which is text from a knowledge
  * base an operator uploaded — cannot become markup. Everything is escaped by
  * construction rather than by a sanitiser somebody has to remember to call.
+ *
+ * Every block carries `dir="auto"`, which is why the layout classes throughout
+ * are logical (`ps-5`, `text-start`) rather than left and right. The assistant
+ * answers in the language it was asked in, so one bubble can hold a Persian
+ * paragraph and an English one — a bullet list of service names among Persian
+ * prose is the ordinary case, not the exotic one. Set once on the bubble, the
+ * whole answer would take the direction of whichever script happened to come
+ * first; set per block, each paragraph and each list item finds its own, which
+ * is the behaviour `auto` was specified for.
  */
 
 export function Prose({ text }: { text: string }) {
@@ -27,7 +36,7 @@ function blocks(text: string): ReactNode[] {
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
     out.push(
-      <p key={`p${out.length}`} className="whitespace-pre-wrap">
+      <p key={`p${out.length}`} dir="auto" className="whitespace-pre-wrap">
         {inline(paragraph.join(" "))}
       </p>,
     );
@@ -38,18 +47,18 @@ function blocks(text: string): ReactNode[] {
     if (!list) return;
 
     const items = list.items.map((item, i) => (
-      <li key={i} className="ps-1">
+      <li key={i} dir="auto" className="ps-1">
         {inline(item)}
       </li>
     ));
 
     out.push(
       list.ordered ? (
-        <ol key={`l${out.length}`} className="list-decimal space-y-1 ps-5">
+        <ol key={`l${out.length}`} dir="auto" className="list-decimal space-y-1 ps-5">
           {items}
         </ol>
       ) : (
-        <ul key={`l${out.length}`} className="list-disc space-y-1 ps-5">
+        <ul key={`l${out.length}`} dir="auto" className="list-disc space-y-1 ps-5">
           {items}
         </ul>
       ),

@@ -17,6 +17,14 @@ import {
   recordMessage,
   touchConversation,
 } from "@/lib/ai/memory";
+import {
+  languageDirective,
+  resolveLanguage,
+  say,
+  DEFAULT_LANGUAGE,
+  type Language,
+} from "@/lib/ai/language";
+import { groundingBlock } from "@/lib/ai/persona";
 import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { formatContext, retrieve, EMPTY_RETRIEVAL } from "@/lib/ai/retrieve";
 import { runTool, toolDefinitions, type ToolResult } from "@/lib/ai/tools";
@@ -37,15 +45,14 @@ import type { TokenUsage, TurnEvent, TurnRequest } from "@/lib/ai/types";
  * only one of them gets updated when the rules change.
  */
 
-/** The visitor sees this when something breaks. It is never a stack trace. */
-const FAILURE_MESSAGE =
-  "Something went wrong at our end. Please try again, or email nazanin.khosravi20.nk@gmail.com and the team will pick it up.";
-
-const TOO_FAST_MESSAGE =
-  "That is a lot of questions at once. Give it a moment and send that again.";
-
-const PAUSED_MESSAGE =
-  "A colleague from the Arkan team is replying to this conversation. Your message has been passed to them.";
+/**
+ * What the engine itself says — a failure, a rate limit, an operator takeover —
+ * lives in lib/ai/language.ts in both languages.
+ *
+ * These are never a stack trace, and they are never in a language the visitor
+ * was not writing in: a Persian conversation that fails in English has failed
+ * twice.
+ */
 
 /** A visitor message longer than this is a paste, not a question. */
 const MAX_MESSAGE_CHARS = 4000;
@@ -58,15 +65,21 @@ export async function* runTurn(
 ): AsyncGenerator<TurnEvent> {
   const question = request.message.trim().slice(0, MAX_MESSAGE_CHARS);
 
+  // Provisional: good enough for the messages that can be reached before the
+  // conversation has been loaded, and replaced below with one resolved against
+  // the history, which is what keeps a one-word reply from flipping the
+  // language mid-conversation.
+  let language: Language = resolveLanguage(question);
+
   if (!question) {
-    yield { type: "error", message: "Ask me something and I will help if I can." };
+    yield { type: "error", message: say("empty", DEFAULT_LANGUAGE) };
     return;
   }
 
   const limit = await checkRateLimit(`chat:${request.channel}`, request.externalUserId);
 
   if (!limit.allowed) {
-    yield { type: "error", message: TOO_FAST_MESSAGE };
+    yield { type: "error", message: say("tooFast", language) };
     return;
   }
 
@@ -84,6 +97,14 @@ export async function* runTurn(
       content: question,
     });
 
+    // Read before anything is decided, because two decisions depend on it: what
+    // the model is shown of the conversation, and which language this turn is
+    // answered in. A visitor who has been writing Persian and replies "ok" has
+    // not switched to English, and only the history can say so.
+    const window = await buildWindow(conversation);
+
+    language = resolveLanguage(question, window.recent);
+
     // An operator has taken this conversation over. Their message is stored so
     // it appears in the inbox, and the bot stays out of the way rather than
     // talking over the person now handling it.
@@ -91,15 +112,17 @@ export async function* runTurn(
       // The acknowledgement is stored as well as sent. A visitor who reloads
       // should still see why the assistant went quiet, and the operator should
       // see in the transcript exactly what their visitor was told.
+      const paused = say("paused", language);
+
       const messageId = await recordMessage({
         conversationId: conversation.id,
         role: "assistant",
-        content: PAUSED_MESSAGE,
+        content: paused,
       });
 
       await touchConversation(conversation.id, 2);
 
-      yield { type: "delta", text: PAUSED_MESSAGE };
+      yield { type: "delta", text: paused };
       yield { type: "handoff", reason: "An operator is answering this conversation." };
       yield {
         type: "done",
@@ -132,10 +155,21 @@ export async function* runTurn(
       yield { type: "citations", citations: retrieval.citations };
     }
 
-    const window = await buildWindow(conversation);
+    // The question was recorded a moment ago, so the window already ends with
+    // it. Sending it again as well put the visitor's words in twice — harmless
+    // to read, but it is the last thing the model sees and a doubled question
+    // reads as an emphasis nobody intended.
+    const earlier = endsWith(window.recent, question)
+      ? window.recent.slice(0, -1)
+      : window.recent;
 
     const messages: ChatMessage[] = [
       { role: "system", content: prompt.content },
+      // Code-owned, and after the operator's prompt on purpose. The database
+      // prompt is editable without a deploy and may be years old; the boundary
+      // between what Arkan has published and what a model would like to say for
+      // it must not be one admin-panel edit away from gone. See persona.ts.
+      { role: "system", content: groundingBlock() },
       { role: "system", content: contextBlock(retrieval.chunks.length, formatContext(retrieval.chunks)) },
       ...(window.summary
         ? [
@@ -145,18 +179,23 @@ export async function* runTurn(
             },
           ]
         : []),
-      ...window.recent.map((message) =>
+      ...earlier.map((message) =>
         message.role === "user"
           ? ({ role: "user", content: message.content } as ChatMessage)
           : ({ role: "assistant", content: message.content } as ChatMessage),
       ),
+      // Last, immediately before the question. An instruction a thousand tokens
+      // above the thing it governs is followed far less reliably than the same
+      // sentence next to it, and answering a Persian question in English was
+      // exactly that failure.
+      { role: "system", content: languageDirective(language) },
       { role: "user", content: question },
     ];
 
     const chosen = await chooseModel(modelSettings, catalog);
 
     if (!chosen) {
-      yield { type: "error", message: FAILURE_MESSAGE };
+      yield { type: "error", message: say("failure", language) };
       return;
     }
 
@@ -215,7 +254,7 @@ export async function* runTurn(
           type: "tool",
           name: call.function.name,
           state: "running",
-          label: runningLabel(call.function.name),
+          label: runningLabel(call.function.name, language),
         };
 
         let result: ToolResult;
@@ -224,6 +263,7 @@ export async function* runTurn(
           result = await runTool(call, {
             conversationId: conversation.id,
             channel: request.channel,
+            language,
           });
         } catch (error) {
           console.error(`[arkan] Tool ${call.function.name} threw:`, error);
@@ -298,7 +338,7 @@ export async function* runTurn(
       });
     }
 
-    yield { type: "error", message: FAILURE_MESSAGE };
+    yield { type: "error", message: say("failure", language) };
   }
 }
 
@@ -329,15 +369,38 @@ function contextBlock(count: number, context: string): string {
   );
 }
 
-function runningLabel(name: string): string {
-  switch (name) {
-    case "capture_lead":
-      return "Sending your request…";
-    case "request_human":
-      return "Passing this to the team…";
-    default:
-      return "Working…";
-  }
+/**
+ * True when the window already ends with the message about to be appended.
+ *
+ * The question is recorded before the window is read, so in the ordinary case
+ * it does. The check exists for the case where it does not: recordMessage
+ * swallows a write failure and returns null, and the question still has to
+ * reach the model.
+ */
+function endsWith(
+  recent: readonly { role: string; content: string }[],
+  question: string,
+): boolean {
+  const last = recent[recent.length - 1];
+  return last?.role === "user" && last.content === question;
+}
+
+/** Shown to the visitor while a tool runs, so it follows their language too. */
+function runningLabel(name: string, language: Language): string {
+  const labels = {
+    capture_lead: {
+      en: "Sending your request…",
+      fa: "در حال ثبت درخواست شما…",
+    },
+    request_human: {
+      en: "Passing this to the team…",
+      fa: "در حال ارجاع به تیم…",
+    },
+    working: { en: "Working…", fa: "در حال انجام…" },
+  } as const;
+
+  const key = name === "capture_lead" || name === "request_human" ? name : "working";
+  return labels[key][language];
 }
 
 /**

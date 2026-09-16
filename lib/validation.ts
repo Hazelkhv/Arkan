@@ -11,6 +11,28 @@ import { businessStages, contactTimes } from "@/lib/content";
  * the reader's task — never about the code that produced them.
  */
 
+/**
+ * Persian and Arabic-Indic digits, rewritten as the digits a phone can be
+ * dialled from.
+ *
+ * `\d` in JavaScript is ASCII 0-9 and nothing else, so "۰۹۱۲۳۴۵۶۷۸۹" — which is
+ * simply how a number is written on an Iranian keyboard — counted as zero
+ * digits and was rejected as not a phone number at all. The assistant hit this
+ * first, because it is the only surface where a visitor is likely to be typing
+ * Persian in the first place, and it turned "book me a consultation" into a
+ * loop asking for the number again.
+ *
+ * Normalising rather than merely accepting: the row is what somebody in the
+ * office dials, and it should hold one kind of digit.
+ */
+export function normaliseDigits(value: string): string {
+  return value.replace(/[۰-۹٠-٩]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    const base = code >= 0x06f0 ? 0x06f0 : 0x0660;
+    return String(code - base);
+  });
+}
+
 const optionalText = (max: number) =>
   z
     .string()
@@ -28,11 +50,18 @@ export const consultationSchema = z.object({
   phone: z
     .string()
     .trim()
-    .min(1, "Please enter your phone number.")
-    .max(40, "This is longer than we can store. Please shorten it.")
-    .refine(
-      (value) => (value.match(/\d/g) ?? []).length >= 7,
-      "Please enter a phone number we can reach you on.",
+    // Before the length check and before the count: a Persian-digit number is
+    // a phone number, and it has to be one by the time anything measures it.
+    .transform(normaliseDigits)
+    .pipe(
+      z
+        .string()
+        .min(1, "Please enter your phone number.")
+        .max(40, "This is longer than we can store. Please shorten it.")
+        .refine(
+          (value) => (value.match(/\d/g) ?? []).length >= 7,
+          "Please enter a phone number we can reach you on.",
+        ),
     ),
 
   email: z
