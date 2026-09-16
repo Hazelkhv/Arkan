@@ -16,6 +16,7 @@ import {
   streamTurn,
   type LoadedMessage,
 } from "@/lib/chat-client";
+import { useKeyboardInset } from "@/lib/use-keyboard-inset";
 import type { Channel, Citation, TurnEvent } from "@/lib/ai/types";
 import { assistant, services } from "@/lib/content";
 
@@ -131,10 +132,56 @@ type Props = {
    * sequence to sit through.
    */
   sequenced?: boolean;
+  /**
+   * Lift the composer clear of a phone's on-screen keyboard.
+   *
+   * True where the panel sits in normal document flow — the full page and the
+   * widget's iframe, both of which are as tall as the window and have nothing
+   * to move. False in the launcher, which moves its whole fixed panel instead:
+   * doing both would raise the composer twice and leave a gap the height of the
+   * keyboard under it.
+   */
+  keyboardAware?: boolean;
   className?: string;
 };
 
 const STORAGE_KEY = "arkan.chat.conversation";
+
+/**
+ * The conversation id, kept where a reload and a page navigation can both find
+ * it.
+ *
+ * localStorage rather than sessionStorage, deliberately: the launcher is on
+ * every page of the site and /consultant is a different document, so a visitor
+ * who asks something in the bubble and then opens the full page must find the
+ * same conversation. sessionStorage survives a reload but is per-tab and is
+ * cleared more eagerly; localStorage is what makes the thread follow them.
+ *
+ * Both accessors throw rather than return null in a Safari private window and
+ * wherever site data is blocked, which is why neither is called without this.
+ * The cost of losing it is this visitor's history — never their answer, since
+ * the conversation itself lives on the server.
+ */
+function readStored(channel: Channel): string | null {
+  try {
+    return window.localStorage.getItem(`${STORAGE_KEY}.${channel}`);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(channel: Channel, value: string | null): void {
+  try {
+    if (value === null) {
+      window.localStorage.removeItem(`${STORAGE_KEY}.${channel}`);
+    } else {
+      window.localStorage.setItem(`${STORAGE_KEY}.${channel}`, value);
+    }
+  } catch {
+    // See above: a visitor with storage blocked still gets a working
+    // conversation, it just does not survive the next page load.
+  }
+}
 
 export function ChatPanel({
   channel = "web",
@@ -146,8 +193,11 @@ export function ChatPanel({
   autoFocus = false,
   compact = false,
   sequenced = true,
+  keyboardAware = true,
   className = "",
 }: Props) {
+  const keyboardInset = useKeyboardInset(keyboardAware);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
@@ -183,7 +233,7 @@ export function ChatPanel({
   // stored id belongs to this visitor and returns nothing if it does not, so a
   // tampered value costs the visitor their history and reveals nothing.
   useEffect(() => {
-    const stored = window.localStorage.getItem(`${STORAGE_KEY}.${channel}`);
+    const stored = readStored(channel);
     if (!stored) return;
 
     conversationId.current = stored;
@@ -283,10 +333,7 @@ export function ChatPanel({
         switch (event.type) {
           case "conversation":
             conversationId.current = event.conversationId;
-            window.localStorage.setItem(
-              `${STORAGE_KEY}.${channel}`,
-              event.conversationId,
-            );
+            writeStored(channel, event.conversationId);
             break;
           case "citations":
             citations = event.citations;
@@ -361,7 +408,7 @@ export function ChatPanel({
 
   const reset = useCallback(() => {
     conversationId.current = null;
-    window.localStorage.removeItem(`${STORAGE_KEY}.${channel}`);
+    writeStored(channel, null);
     setMessages([]);
     setError(null);
     setHandoff(null);
@@ -560,7 +607,13 @@ export function ChatPanel({
         </div>
       </div>
 
+      {/* The keyboard inset is added to the composer's own bottom padding rather
+          than applied to the panel. On the full page the panel is in normal
+          document flow, so there is nothing fixed to move — the composer simply
+          needs somewhere to sit that the keys are not already occupying. The
+          launcher handles its own fixed panel; see AssistantLauncher. */}
       <div
+        style={keyboardInset > 0 ? { paddingBottom: keyboardInset } : undefined}
         className={`border-t border-sand bg-bone/90 backdrop-blur-sm ${
           compact ? "pt-3 pb-3" : "pt-4 pb-5"
         }`}
@@ -597,6 +650,12 @@ export function ChatPanel({
                 placeholder={
                   compact ? assistant.inputPlaceholderShort : assistant.inputPlaceholder
                 }
+                // The question is typed in whichever language the visitor
+                // thinks in, and a Persian sentence laid out left-to-right with
+                // the cursor on the wrong end is unusable. `auto` flips on the
+                // first strong character and leaves the English placeholder
+                // alone. The padding classes are logical, so nothing else moves.
+                dir="auto"
                 disabled={busy}
                 autoFocus={autoFocus}
                 className={`min-h-12 w-full min-w-0 flex-1 resize-none rounded-btn border border-slate/40 bg-white py-3 leading-relaxed text-ink placeholder:text-slate/70 focus:border-brass focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine disabled:opacity-70 ${

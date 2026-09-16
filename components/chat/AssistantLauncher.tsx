@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { useKeyboardInset } from "@/lib/use-keyboard-inset";
 import { assistant } from "@/lib/content";
 
 /**
@@ -50,6 +51,11 @@ export function AssistantLauncher() {
   const pathname = usePathname();
   const [config, setConfig] = useState<Config | null>(null);
   const [open, setOpen] = useState(false);
+
+  // Measured only while the panel is open. A visitor typing into the
+  // consultation form with the bubble closed should not cause a listener to run
+  // on every keystroke of the keyboard animation.
+  const keyboardInset = useKeyboardInset(open);
 
   const panel = useRef<HTMLDivElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
@@ -143,6 +149,20 @@ export function AssistantLauncher() {
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("a")) close();
           }}
+          // The keyboard is not something CSS can see. `100dvh` accounts for a
+          // collapsing browser toolbar and nothing else, so on a phone the
+          // composer of a bottom-anchored fixed panel ends up behind the keys.
+          // Moving the panel's own bottom edge up by the covered height is what
+          // keeps it above them — and on every desktop the inset is 0, so this
+          // style is not applied at all.
+          style={
+            keyboardInset > 0
+              ? { bottom: keyboardInset + 12, top: "0.75rem" }
+              : undefined
+          }
+          // Edge to edge on a phone, less the 12px gutter: at 360px a panel
+          // inset any further is narrower than the questions it is asking the
+          // visitor to read.
           className="fixed inset-x-3 bottom-3 top-[calc(var(--header-h)+0.75rem)] z-[55] flex flex-col overflow-hidden rounded-card border border-sand bg-bone shadow-[0_18px_48px_-12px_rgba(21,32,28,0.35)] sm:inset-x-auto sm:end-5 sm:top-auto sm:h-[min(36rem,calc(100dvh-8rem))] sm:w-[25rem]"
         >
           {/* Pine bar: `on-pine` flips the focus ring to Bone, because a Pine
@@ -220,6 +240,9 @@ export function AssistantLauncher() {
             starters={config.starters.length ? config.starters : undefined}
             autoFocus
             compact
+            // The panel above moves as a whole; the composer must not also move
+            // inside it, or it rises by twice the keyboard.
+            keyboardAware={false}
             className="px-4"
           />
         </div>
@@ -234,7 +257,12 @@ export function AssistantLauncher() {
         // Hidden from the tab order while the panel is open: it sits outside
         // the dialog, and a trapped Tab must not be able to reach it.
         tabIndex={open ? -1 : 0}
-        className={`fixed bottom-5 end-5 z-[55] inline-flex min-h-14 items-center gap-2 rounded-full bg-pine px-5 text-bone shadow-[0_10px_28px_-8px_rgba(21,32,28,0.5)] transition-[transform,background-color,opacity] duration-200 ease-out-soft hover:bg-[#0f2c26] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine ${
+        // The home indicator on a modern iPhone sits in the bottom 34px of the
+        // window, and a button placed 1.25rem up is underneath it. `env()`
+        // resolves to 0 everywhere there is no such inset, so this is the same
+        // 1.25rem on every other device.
+        style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
+        className={`fixed end-5 z-[55] inline-flex min-h-14 items-center gap-2 rounded-full bg-pine px-5 text-bone shadow-[0_10px_28px_-8px_rgba(21,32,28,0.5)] transition-[transform,background-color,opacity] duration-200 ease-out-soft hover:bg-[#0f2c26] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine ${
           open ? "pointer-events-none scale-90 opacity-0" : "scale-100 opacity-100"
         }`}
       >
