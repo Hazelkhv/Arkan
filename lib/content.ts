@@ -38,6 +38,16 @@ export const nav = [
   { label: "Contact", href: "/#contact" },
 ] as const;
 
+/**
+ * The footer carries one link the sticky header does not: the blog.
+ *
+ * The header is the conversion path — five items, each a step toward the form.
+ * Reading material belongs a level down, where a visitor who is not ready to
+ * enquire can find it without the header growing a sixth item and losing its
+ * single purpose.
+ */
+export const footerNav = [...nav, { label: "Insight", href: "/blog" }] as const;
+
 export const hero = {
   headline: "When growth stalls, the problem is rarely effort.",
   supporting:
@@ -316,4 +326,65 @@ export const seo = {
     "Arkan is a business strategy and growth advisory firm in Tehran. We help small and medium businesses find where growth is blocked and stay alongside them through implementation. Request a free consultation.",
   ogImageAlt:
     "An Arkan consultant in a meeting room overlooking Tehran, beside the Arkan wordmark.",
+} as const;
+
+/**
+ * The blog — the public half of the autonomous content pipeline.
+ *
+ * Every string a visitor can read lives here for the same reason the rest of the
+ * site's copy does: a sentence written inside a component is a sentence nobody
+ * reviews. The articles themselves are generated, but the furniture around them
+ * is the brand's, and it is edited like any other page.
+ */
+export const blog = {
+  eyebrow: "Insight",
+  title: "Notes on growing a business that stalled",
+  intro:
+    "Short pieces for founders and managers whose business earns well and has stopped moving. Written by Arkan, published here as we go.",
+  empty: "The first article is on its way. Check back shortly.",
+  readMore: "Read the article",
+  backToIndex: "All articles",
+  faqHeading: "Questions we get asked",
+  ctaHeading: "Talk it through with us",
+  ctaBody:
+    "If any of this sounds like your business, the first conversation is free. We reply within one business day.",
+  ctaButton: "Request a consultation",
+} as const;
+
+/**
+ * The studio — the pipeline's control room. Not a visitor-facing surface, but
+ * the copy still belongs here rather than scattered through the components.
+ */
+export const studio = {
+  title: "Content studio",
+  subtitle: "Eight agents, one article at a time.",
+  lockedTitle: "Studio is locked",
+  lockedBody: "Enter the studio password to continue.",
+  lockedButton: "Unlock",
+  lockedError: "That password is not right.",
+  runHeading: "Run the pipeline",
+  runHint: "Topic hint (optional)",
+  runHintPlaceholder: "e.g. pricing, hiring a first manager, cash flow",
+  runButton: "Start",
+  runningButton: "Running…",
+  tabs: {
+    run: "Production line",
+    posts: "Posts",
+    lessons: "Lessons",
+  },
+  postsEmpty: "No posts yet. Start a run.",
+  lessonsEmpty: "No lessons yet. They appear after the first run.",
+  lessonsIntro:
+    "What the critic has taught each agent. These are injected into that agent's system prompt on every run — delete anything that looks wrong.",
+  publish: "Publish",
+  unpublish: "Move to draft",
+  view: "View",
+  deleteLesson: "Delete",
+  feedbackUp: "Good article",
+  feedbackDown: "Needs work",
+  feedbackCommentPlaceholder: "What should the agents do differently?",
+  feedbackSend: "Send to the critic",
+  feedbackThanks: "Sent. The critic will turn this into a lesson.",
+  storageMemory: "In-memory storage — data is lost when the server restarts.",
+  storageSupabase: "Supabase — data persists.",
 } as const;

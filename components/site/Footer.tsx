@@ -1,5 +1,5 @@
 import { Logo } from "@/components/site/Logo";
-import { company, footer, nav } from "@/lib/content";
+import { company, footer, footerNav } from "@/lib/content";
 
 /**
  * Footer. Every contact detail comes from the client brief — nothing here is
@@ -23,7 +23,7 @@ export function Footer() {
               {footer.navHeading}
             </h2>
             <ul className="mt-5 flex flex-col gap-3">
-              {nav.map((item) => (
+              {footerNav.map((item) => (
                 <li key={item.href}>
                   <a
                     href={item.href}

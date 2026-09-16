@@ -183,6 +183,59 @@ catalog, citation grouping, HTML extraction, the widget domain allowlist, and
 Telegram's escaping. `npm run build` remains the correctness gate for
 everything else.
 
+## The blog pipeline
+
+Eight agents write the blog, one article at a time, and get better at it.
+
+```
+idea-scout → strategist → researcher → writer ⇄ editor → seo → publisher → critic
+```
+
+Each agent is a model with its own system prompt, its own temperature and an
+explicit output contract (Zod, in `lib/blog/agents/types.ts`) — an editorial
+team rather than one enormous prompt. The orchestrator that runs them is
+ordinary code: the order, the revision loop and the publish decision are `if`s
+and a `while`, not a model's judgement.
+
+**The quality gate.** The editor scores the draft out of 100. Below 75, or with
+any verdict other than `approve`, it goes back to the writer — at most twice.
+After that the article waits in the studio as a draft for a person to decide. A
+score of 75 with an approval and no failed structural check publishes itself.
+
+**It learns without being retrained.** After every run the critic reviews the
+*run* — the scores, the revision rounds, the failed SEO checks — and writes up
+to three lessons, each addressed to one agent. Those lessons are injected into
+that agent's system prompt on the next run. A thumbs-up or thumbs-down in the
+studio goes through the same critic. Each agent keeps at most eight active
+lessons, and anything wrong can be deleted by hand.
+
+### Running it
+
+```bash
+npm run blog:agent -- idea        # one agent, on its own, against a fixture
+npm run blog:agent -- pipeline    # the whole thing, in memory, nothing saved
+npm run dev                       # then open /studio
+```
+
+Only `OPENROUTER_API_KEY` is required. Without Supabase everything runs in
+memory and is lost on restart, which is fine on a laptop. `TAVILY_API_KEY` gives
+the researcher real web search; without it, every fact it produces is marked as
+judgement rather than as a sourced statistic, and the writer is told not to
+present any of it as a measurement.
+
+`PIPELINE_MODEL` sets the model for all eight agents (default
+`google/gemini-2.5-flash`); `WRITER_MODEL` upgrades the writer alone, which is
+the only agent whose output a human reads.
+
+### Deploying it
+
+Apply `supabase/blog.sql` first — on Vercel, in-memory storage does not survive
+between requests, and the weekly cron refuses to run without a database. Set
+`STUDIO_PASSWORD` (the studio can publish) and `CRON_SECRET` (the cron endpoint
+spends money; with the variable unset the route is disabled rather than open).
+`vercel.json` schedules a run for 06:00 UTC every Monday: if the editor approves
+it, the article is live; if not, it waits in the studio.
+
 ## Deploying
 
 Push to Vercel and set the same environment variables in the project settings.

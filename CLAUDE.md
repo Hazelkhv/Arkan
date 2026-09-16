@@ -148,6 +148,77 @@ The three photographs — `hero.jpg`, `team.jpg`, `og-image.jpg` — sit at the 
 
 <!-- BEGIN:nextjs-agent-rules -->
 
+## The blog pipeline (multi-agent)
+
+A second AI system lives beside the assistant and shares nothing with it but the
+OpenRouter key. `lib/blog/` writes the blog: eight agents, one orchestrator, a
+studio to supervise it, and a memory that changes how the agents behave next
+time. Educational commentary in the source is in Persian; everything user-facing
+is English, like the rest of the site.
+
+```
+idea-scout → strategist → researcher → writer ⇄ editor → seo → publisher → critic
+```
+
+**The orchestrator is code, and that is the point.** [lib/blog/agents/orchestrator.ts](lib/blog/agents/orchestrator.ts)
+contains no LLM call. Creative decisions belong to agents; order, the revision
+loop, the quality gate and state recording belong to ordinary code, because
+those are the parts that have to be predictable, debuggable and testable. Do not
+replace it with a "manager" model.
+
+**Two helpers, not a framework.** [lib/blog/ai.ts](lib/blog/ai.ts) exposes
+`runAgentText` (the writer alone — a human reads its output) and `runAgentJSON`
+(everything else — an agent reads its output). `runAgentJSON` extracts the JSON,
+validates it with Zod and, on failure, hands the model its own answer plus the
+exact error for one repair round. `generateObject` is not used: JSON-mode support
+is inconsistent across OpenRouter's catalog, and extraction plus Zod works on
+every model. A custom `fetch` injects `reasoning: { effort: "low" }` into every
+request, because a reasoning model with no cap spends the whole token budget
+thinking and returns empty text with no error.
+
+**Validation rejects; normalisation repairs.** An over-long meta description
+once killed a run after six successful steps. Anything computable is computed
+([seo-checks.ts](lib/blog/agents/seo-checks.ts)) and anything fixable is fixed
+(slug, metadata length) rather than thrown. The Zod schemas only stop what code
+cannot repair.
+
+**The quality gate is two conditions, plus a third.** `shouldAutoPublish` needs
+score ≥ 75, verdict `approve`, and no failed check in `BLOCKING_CHECKS`. Below
+that, up to `MAX_REVISION_ROUNDS = 2` rewrites; after that the post is held as a
+draft for a human. The editor is given its own previous issues on a revision
+round — without that it reviews the rewrite as a fresh document, invents new
+nitpicks, and the loop oscillates instead of converging.
+
+**Self-improvement is data, not fine-tuning.** The critic reviews the run (not
+the article) and writes at most three lessons, each addressed to one agent.
+`systemPromptFor` injects that agent's active lessons at the end of its system
+prompt on every run. Human 👍/👎 from the studio goes through the same critic.
+Two guards keep the memory healthy: eight active lessons per agent (older ones
+retire, they are not deleted) and manual deletion in the studio. A wrong lesson
+is invisible and degrades every future run.
+
+**Storage is an interface.** `getStore()` returns the Supabase adapter when the
+service role credentials are set and the in-memory one otherwise, so the whole
+system runs with nothing but `OPENROUTER_API_KEY`. Policy — the lesson cap, slug
+uniqueness — lives above the adapters so the two cannot drift. In-memory storage
+is useless on Vercel: serverless instances do not share memory, which is why
+`/api/cron/weekly` refuses to run without Supabase.
+
+**Surfaces.** `/blog` and `/blog/[slug]` are in the site group (published posts
+only, Article + FAQPage JSON-LD from the SEO agent's output, `.article` styles
+in globals.css). `/studio` is in the admin group — noindex, no marketing chrome
+— and is locked by `STUDIO_PASSWORD`, with the guard on the server and on every
+API route. `/api/pipeline/run` returns immediately and continues the run inside
+`after()`; the studio polls the run record, which is why every step is persisted
+the moment it starts.
+
+Schema: [supabase/blog.sql](supabase/blog.sql) — `blog_runs`, `blog_posts`,
+`blog_lessons`, `blog_feedback`, prefixed because `feedback` already belongs to
+the assistant. RLS enabled, no policies, same rule as the assistant's tables.
+
+Test an agent on its own with `npm run blog:agent -- <agent>`; it forces the
+in-memory store so it can never write to the live database.
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
