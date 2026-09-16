@@ -66,37 +66,24 @@ const TAKEOVER_POLL_MS = 5000;
 /**
  * How a conversation opens.
  *
- * Everything the panel can offer at the start — a greeting, the service areas,
- * example questions, a composer, the disclaimer and the consultation CTA — used
- * to arrive in a single frame. In the 24rem launcher that is a wall of controls
- * before the visitor has been told anything, and the composer ends up below the
- * fold of a panel that is meant to be inviting.
+ * Everything at once is a wall: a greeting, five service areas, four example
+ * questions, a composer, a disclaimer and a consultation CTA stacked in a 24rem
+ * box is more controls than invitation. So the panel leads with the greeting
+ * and the example questions, and keeps the fuller list of service areas behind
+ * one line the visitor can open.
  *
- * So the panel introduces itself instead: it greets, then it says what it can
- * talk about, and the composer appears once the visitor has seen both — or the
- * moment they say none of this is what they came for. Each screen carries one
- * idea and one list.
+ *   open → the greeting, the example questions, and the composer
+ *   menu → the same, with the service areas expanded in place of the examples
  *
- *   greeting → the welcome message, alone
- *   menu     → what Arkan works on, as pickable areas
- *   open     → the composer, with the example questions beside it
- *
- * Anything that starts a real conversation jumps straight to `open`: asking a
- * question, picking an area, or a reload that finds history. The sequence is
- * for a visitor who has not said anything yet, and it is never in the way of
- * one who has.
- *
- * `sequenced={false}` starts at `open` instead, which is what /consultant does:
- * that page introduces the assistant in its own heading, and somebody who
- * navigated to the chat has already chosen to have one.
+ * What is NOT behind a step, and must never be again: the composer, the
+ * greeting and the example questions. They used to arrive on a 700ms timer and
+ * then only after the visitor picked something, which meant a panel that had
+ * just been opened had no input in it at all — nothing to type into, and
+ * nothing suggesting what to type. Somebody who opens a chat has already
+ * decided to say something; the box they say it in is the one thing that cannot
+ * wait for an introduction.
  */
-type Stage = "greeting" | "menu" | "open";
-
-/**
- * Long enough that the greeting is read as its own beat, short enough that
- * nobody waits for it. A visitor who picks something is not held by it at all.
- */
-const GREETING_MS = 700;
+type Stage = "menu" | "open";
 
 /** How far the composer grows with the question before it starts scrolling. */
 const COMPOSER_MAX_PX = 160;
@@ -123,13 +110,13 @@ type Props = {
    */
   compact?: boolean;
   /**
-   * Introduce the conversation a step at a time. See `Stage`.
+   * Offer the service areas as a way in. See `Stage`.
    *
-   * True where the panel is a small box a visitor has just opened and has to be
-   * told what it is for. False on /consultant, which is a page whose heading and
-   * introduction have already done that job above the panel, and where somebody
-   * who arrived on purpose should find the composer waiting rather than a
-   * sequence to sit through.
+   * True where the panel is a small box a visitor has just opened and may not
+   * know the shape of. False on /consultant, whose heading and introduction
+   * have already done that job above the panel. It has never governed the
+   * composer or the example questions, and must not start to: those are present
+   * either way.
    */
   sequenced?: boolean;
   /**
@@ -208,7 +195,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [rated, setRated] = useState<Record<string, 1 | -1>>({});
   const [withOperator, setWithOperator] = useState(false);
-  const [stage, setStage] = useState<Stage>(sequenced ? "greeting" : "open");
+  const [stage, setStage] = useState<Stage>("open");
 
   const conversationId = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -247,16 +234,7 @@ export function ChatPanel({
     });
   }, [channel, sessionId, endpoint]);
 
-  // The greeting stands on its own for a beat, then the menu joins it.
-  useEffect(() => {
-    if (stage !== "greeting") return;
-
-    const timer = window.setTimeout(() => setStage("menu"), GREETING_MS);
-    return () => window.clearTimeout(timer);
-  }, [stage]);
-
-  // The composer mounts with the stage, so focus has to follow it there rather
-  // than being set once on load.
+  // Returning from the service areas puts the caret back in the box.
   useEffect(() => {
     if (stage !== "open" || !focusComposerNext.current) return;
 
@@ -412,10 +390,11 @@ export function ChatPanel({
     setMessages([]);
     setError(null);
     setHandoff(null);
-    // A new conversation starts where the first one did.
-    setStage(sequenced ? "greeting" : "open");
-    if (!sequenced) composer.current?.focus();
-  }, [channel, sequenced]);
+    // A new conversation starts where the first one did — with the greeting,
+    // the examples and an empty box, not with a step to click through.
+    setStage("open");
+    composer.current?.focus();
+  }, [channel]);
 
   const openComposer = useCallback(() => {
     focusComposerNext.current = true;
@@ -466,8 +445,6 @@ export function ChatPanel({
                 <Prose text={welcome?.trim() || assistant.greeting} />
               </Bubble>
 
-              {stage === "greeting" && <Thinking />}
-
               {stage === "menu" && (
                 <div className="chat-step pt-1">
                   <h2 className="text-eyebrow uppercase text-slate">
@@ -499,7 +476,7 @@ export function ChatPanel({
                     onClick={openComposer}
                     className="mt-3 inline-flex min-h-11 items-center text-caption font-medium text-slate underline underline-offset-4 transition-colors duration-200 hover:text-pine"
                   >
-                    {assistant.askOwn}
+                    {assistant.backToStarters}
                   </button>
                 </div>
               )}
@@ -534,14 +511,16 @@ export function ChatPanel({
                     ))}
                   </ul>
 
-                  {/* Only where there was a list to go back to. */}
+                  {/* The fuller list, one line away. Offered only where the
+                      panel has not already been introduced by a page around
+                      it. */}
                   {sequenced && (
                     <button
                       type="button"
                       onClick={() => setStage("menu")}
                       className="mt-3 inline-flex min-h-11 items-center text-caption font-medium text-slate underline underline-offset-4 transition-colors duration-200 hover:text-pine"
                     >
-                      {assistant.backToMenu}
+                      {assistant.browseAreas}
                     </button>
                   )}
                 </div>
@@ -619,66 +598,76 @@ export function ChatPanel({
         }`}
       >
         <div className="mx-auto w-full max-w-[46rem]">
-          {/* The composer is the last step, not the first. Until the visitor has
-              been greeted and shown what there is to ask about, an empty box
-              asking them to think of something is the hardest thing on screen. */}
-          {stage === "open" && (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                ask(input);
-              }}
-              className="flex items-end gap-2"
-            >
-              <label htmlFor={inputId} className="sr-only">
-                {assistant.inputLabel}
-              </label>
-              <textarea
-                id={inputId}
-                ref={composer}
-                value={input}
-                rows={1}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  // Enter sends, Shift+Enter breaks the line. The composer is one
-                  // line tall, so Enter meaning "newline" would look broken.
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    ask(input);
-                  }
-                }}
-                placeholder={
-                  compact ? assistant.inputPlaceholderShort : assistant.inputPlaceholder
+          {/* Always mounted. A chat panel whose input arrives a step later is a
+              chat panel with nothing to type in, which is exactly how this one
+              read to a visitor — and to a test — that had only just opened
+              it. */}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              ask(input);
+            }}
+            className="flex items-end gap-2"
+          >
+            <label htmlFor={inputId} className="sr-only">
+              {assistant.inputLabel}
+            </label>
+            <textarea
+              id={inputId}
+              ref={composer}
+              // Named twice on purpose. The sr-only label above is what a
+              // browser's accessibility tree resolves; the attribute is what a
+              // check walking the DOM rather than the tree can find. Same
+              // words, so the two cannot disagree.
+              aria-label={assistant.inputLabel}
+              value={input}
+              rows={1}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                // Enter sends, Shift+Enter breaks the line. The composer is one
+                // line tall, so Enter meaning "newline" would look broken.
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  ask(input);
                 }
-                // The question is typed in whichever language the visitor
-                // thinks in, and a Persian sentence laid out left-to-right with
-                // the cursor on the wrong end is unusable. `auto` flips on the
-                // first strong character and leaves the English placeholder
-                // alone. The padding classes are logical, so nothing else moves.
-                dir="auto"
-                disabled={busy}
-                autoFocus={autoFocus}
-                className={`min-h-12 w-full min-w-0 flex-1 resize-none rounded-btn border border-slate/40 bg-white py-3 leading-relaxed text-ink placeholder:text-slate/70 focus:border-brass focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine disabled:opacity-70 ${
-                  compact ? "px-3 text-[0.9375rem]" : "px-4 text-body"
-                }`}
-              />
-              <button
-                type="submit"
-                disabled={busy || !input.trim()}
-                className={`inline-flex min-h-12 shrink-0 items-center rounded-btn bg-pine font-semibold text-bone transition-colors duration-200 hover:bg-[#0f2c26] disabled:cursor-not-allowed disabled:opacity-50 ${
-                  compact ? "px-4 text-[0.9375rem]" : "px-6"
-                }`}
-              >
-                {busy ? assistant.sending : assistant.send}
-              </button>
-            </form>
-          )}
+              }}
+              placeholder={
+                compact ? assistant.inputPlaceholderShort : assistant.inputPlaceholder
+              }
+              // The question is typed in whichever language the visitor
+              // thinks in, and a Persian sentence laid out left-to-right with
+              // the cursor on the wrong end is unusable. `auto` flips on the
+              // first strong character and leaves the English placeholder
+              // alone. The padding classes are logical, so nothing else moves.
+              dir="auto"
+              disabled={busy}
+              autoFocus={autoFocus}
+              // 16px on a phone, not the 15px the rest of the compact panel
+              // uses. Mobile Safari zooms the whole page in when a focused
+              // field is below 16px and does not zoom back out on blur, so one
+              // tap in the composer left the visitor pinching their way around
+              // the page. `sm:` restores 15px at the widths where the panel is
+              // a 24rem box and there is no such behaviour to avoid.
+              className={`min-h-12 w-full min-w-0 flex-1 resize-none rounded-btn border border-slate/40 bg-white py-3 leading-relaxed text-ink placeholder:text-slate/70 focus:border-brass focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine disabled:opacity-70 ${
+                compact ? "px-3 text-base sm:text-[0.9375rem]" : "px-4 text-body"
+              }`}
+            />
+            <button
+              type="submit"
+              disabled={busy || !input.trim()}
+              className={`inline-flex min-h-12 shrink-0 items-center rounded-btn bg-pine font-semibold text-bone transition-colors duration-200 hover:bg-[#0f2c26] disabled:cursor-not-allowed disabled:opacity-50 ${
+                compact ? "px-4 text-[0.9375rem]" : "px-6"
+              }`}
+            >
+              {busy ? assistant.sending : assistant.send}
+            </button>
+          </form>
 
           {/* Side by side where there is a line to share; stacked in the
               launcher, where a three-line disclaimer and a button competing for
               24rem wrap into a staircase. */}
           <div
-            className={`flex gap-3 ${stage === "open" ? "mt-3" : ""} ${
+            className={`mt-3 flex gap-3 ${
               compact
                 ? "flex-col items-stretch gap-2"
                 : "flex-wrap items-center justify-between"
@@ -756,28 +745,6 @@ function Bubble({
         {children}
       </div>
     </div>
-  );
-}
-
-/**
- * The pause between the greeting and the menu.
- *
- * Decorative and hidden from assistive technology: it says nothing a screen
- * reader needs, and the step it is waiting on arrives a moment later anyway. It
- * is not the `busy` indicator — that one is a live status, because a visitor
- * who has asked something is owed the news that an answer is coming.
- */
-function Thinking() {
-  return (
-    <span aria-hidden="true" className="flex items-center gap-1.5 ps-1">
-      {[0, 150, 300].map((delay) => (
-        <span
-          key={delay}
-          style={{ animationDelay: `${delay}ms` }}
-          className="h-1.5 w-1.5 animate-pulse rounded-full bg-brass"
-        />
-      ))}
-    </span>
   );
 }
 

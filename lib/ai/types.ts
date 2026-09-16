@@ -141,6 +141,15 @@ export type StoredMessage = {
    * name would be a small lie told at the moment somebody asked for a person.
    */
   provider: string | null;
+  /**
+   * What the assistant did on this turn, as stored in `messages.tool_calls`.
+   *
+   * Read back because a turn that recorded a consultation request is a fact
+   * about the conversation, and the prose around it may not be. "Perfect, I
+   * have everything" does not tell a later turn whose request was filed; the
+   * call's own arguments do.
+   */
+  toolCalls: unknown;
 };
 
 export type TurnRequest = {

@@ -155,15 +155,27 @@ export function AssistantLauncher() {
           // Moving the panel's own bottom edge up by the covered height is what
           // keeps it above them — and on every desktop the inset is 0, so this
           // style is not applied at all.
-          style={
-            keyboardInset > 0
-              ? { bottom: keyboardInset + 12, top: "0.75rem" }
-              : undefined
-          }
-          // Edge to edge on a phone, less the 12px gutter: at 360px a panel
-          // inset any further is narrower than the questions it is asking the
-          // visitor to read.
-          className="fixed inset-x-3 bottom-3 top-[calc(var(--header-h)+0.75rem)] z-[55] flex flex-col overflow-hidden rounded-card border border-sand bg-bone shadow-[0_18px_48px_-12px_rgba(21,32,28,0.35)] sm:inset-x-auto sm:end-5 sm:top-auto sm:h-[min(36rem,calc(100dvh-8rem))] sm:w-[25rem]"
+          style={keyboardInset > 0 ? { bottom: keyboardInset } : undefined}
+          // Full-bleed on a phone, a floating box from `sm` up.
+          //
+          // It used to be a box on phones too, inset 12px and starting below
+          // the header. That spends a gutter, a shadow, two rounded corners and
+          // the height of the header on decoration, out of a 375x667 window
+          // that a keyboard is about to take half of — and what it costs is the
+          // conversation, which is the only thing in the panel anybody came
+          // for.
+          //
+          // `inset-0` also gives the keyboard somewhere to push against: with
+          // all four edges pinned, moving the bottom edge up by the covered
+          // height lifts the composer clear without the panel losing its top.
+          // The safe-area padding keeps the title bar out from under a notch,
+          // and resolves to 0 on every device that has none.
+          //
+          // Write no class-shaped string in this comment. Tailwind v4 scans the
+          // source text rather than the JSX, so an abbreviated utility written
+          // here is compiled as if it were real — an ellipsis inside one is
+          // emitted as a broken rule and warned about at build time.
+          className="fixed inset-0 z-[55] flex flex-col overflow-hidden bg-bone pt-[env(safe-area-inset-top,0px)] sm:inset-auto sm:bottom-5 sm:end-5 sm:h-[min(36rem,calc(100dvh-8rem))] sm:w-[25rem] sm:rounded-card sm:border sm:border-sand sm:pt-0 sm:shadow-[0_18px_48px_-12px_rgba(21,32,28,0.35)]"
         >
           {/* Pine bar: `on-pine` flips the focus ring to Bone, because a Pine
               ring on a Pine surface cannot be seen and this bar is focusable.

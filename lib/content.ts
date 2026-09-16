@@ -248,8 +248,10 @@ export const assistant = {
   menuHeading: "What can I help you with?",
   menuHint: "Pick an area, or ask your own question.",
   topicPrefix: "Tell me about",
-  askOwn: "Something else — I will type my question",
-  backToMenu: "Back to the list",
+  // Both directions of the same one-line detour: the examples are what the
+  // panel opens with, and the fuller list of areas is a click away from them.
+  browseAreas: "Or browse what Arkan works on",
+  backToStarters: "Back to the example questions",
   inputPlaceholderShort: "Type your question",
   startersHeading: "Try one of these",
   starters: [
@@ -262,9 +264,10 @@ export const assistant = {
   sourcesEmpty: "No source in the knowledge base covered this.",
   ctaHeading: "Ready to talk to someone?",
   // "One business day", matching the Process section and the form's success
-  // message. The brief writes it as "24 business hours"; the site has always
-  // said it the other way, and a visitor who reads both should not have to work
-  // out whether they are the same promise.
+  // message. The brief and the brand guide used to write it as "24 business
+  // hours" and have been brought into line, so there is now one wording of this
+  // promise in the repository — a visitor who reads it twice should not have to
+  // work out whether they are the same thing.
   ctaBody:
     "The first conversation is free, and the team gets back to you within one business day.",
   cta: "Request a Consultation",

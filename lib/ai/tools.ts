@@ -211,19 +211,39 @@ async function captureLead(
   await notifyNewLead(row);
 
   return {
-    content:
-      // "One business day", not "24 business hours". Both were in the codebase
-      // and they are the same promise said two ways — the site, the form's
-      // success message and the Process section all say one business day, so
-      // that is the one a visitor can be shown twice without noticing a
-      // discrepancy.
-      "The consultation request was saved. Confirm it in one sentence and " +
-      "tell them the team will get back to them within one business day. The " +
-      "first conversation is free. Do not ask for the same details again." +
-      replyIn(context.language),
+    content: leadConfirmation(context.language),
     label: "Consultation request sent",
     leadCaptured: true,
   };
+}
+
+/**
+ * What the model is told to say once a request is on file.
+ *
+ * Exported so the promise in it can be tested, because this is the one sentence
+ * in the assistant where a number reaches a visitor as a commitment the firm
+ * then has to keep.
+ *
+ * "One business day", not "24 business hours". Both were in the codebase, and
+ * they are the same promise said two ways: the site's Process section, the
+ * form's success message and the consultation CTA all say one business day, so
+ * that is the wording a visitor can be shown twice without having to work out
+ * whether they are the same thing. The client brief and the brand guide said it
+ * the other way and have been corrected to match, which means the knowledge
+ * base no longer contradicts this sentence rather than merely losing to it.
+ *
+ * Nothing else here carries a figure, and nothing else here should. A duration,
+ * a price, a team size or a callback window invented at this moment is the most
+ * expensive kind of invention the assistant can make — the visitor has just
+ * given their phone number on the strength of it.
+ */
+export function leadConfirmation(language: Language): string {
+  return (
+    "The consultation request was saved. Confirm it in one sentence and " +
+    "tell them the team will get back to them within one business day. The " +
+    "first conversation is free. Do not ask for the same details again." +
+    replyIn(language)
+  );
 }
 
 async function requestHuman(

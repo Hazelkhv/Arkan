@@ -43,7 +43,7 @@ To become the most trusted growth partner for Iranian businesses — the place e
 
 ### Say / Don’t Say
 
-- ✅ **“We’ll contact you within 24 business hours.”**
+- ✅ **“We’ll contact you within one business day.”**
 - ❌ “Click now and transform your life!!!”
 - ✅ **“We stay alongside you through implementation.”**
 - ❌ “Iran’s best and unrivalled consultants.”

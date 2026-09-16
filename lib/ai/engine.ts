@@ -13,8 +13,10 @@ import {
 import {
   buildWindow,
   ensureConversation,
+  latestConversationId,
   maybeSummarise,
   recordMessage,
+  toolNote,
   touchConversation,
 } from "@/lib/ai/memory";
 import {
@@ -28,7 +30,12 @@ import { groundingBlock } from "@/lib/ai/persona";
 import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { formatContext, retrieve, EMPTY_RETRIEVAL } from "@/lib/ai/retrieve";
 import { runTool, toolDefinitions, type ToolResult } from "@/lib/ai/tools";
-import type { TokenUsage, TurnEvent, TurnRequest } from "@/lib/ai/types";
+import type {
+  StoredMessage,
+  TokenUsage,
+  TurnEvent,
+  TurnRequest,
+} from "@/lib/ai/types";
 
 /**
  * One brain, many channels.
@@ -86,7 +93,7 @@ export async function* runTurn(
   let conversationId: string | null = null;
 
   try {
-    const conversation = await ensureConversation(request);
+    const conversation = await ensureConversation(await resume(request));
     conversationId = conversation.id;
 
     yield { type: "conversation", conversationId: conversation.id };
@@ -155,14 +162,6 @@ export async function* runTurn(
       yield { type: "citations", citations: retrieval.citations };
     }
 
-    // The question was recorded a moment ago, so the window already ends with
-    // it. Sending it again as well put the visitor's words in twice — harmless
-    // to read, but it is the last thing the model sees and a doubled question
-    // reads as an emphasis nobody intended.
-    const earlier = endsWith(window.recent, question)
-      ? window.recent.slice(0, -1)
-      : window.recent;
-
     const messages: ChatMessage[] = [
       { role: "system", content: prompt.content },
       // Code-owned, and after the operator's prompt on purpose. The database
@@ -179,11 +178,7 @@ export async function* runTurn(
             },
           ]
         : []),
-      ...earlier.map((message) =>
-        message.role === "user"
-          ? ({ role: "user", content: message.content } as ChatMessage)
-          : ({ role: "assistant", content: message.content } as ChatMessage),
-      ),
+      ...historyMessages(window.recent, question),
       // Last, immediately before the question. An instruction a thousand tokens
       // above the thing it governs is followed far less reliably than the same
       // sentence next to it, and answering a Persian question in English was
@@ -343,6 +338,33 @@ export async function* runTurn(
 }
 
 /**
+ * The conversation a widget visitor is already in, when the widget could not
+ * tell us.
+ *
+ * Every other channel hands its own id back. The full page and the launcher
+ * keep one in localStorage, and Telegram is looked up from the chat id. The
+ * widget can do neither reliably: it runs in an iframe on somebody else's
+ * domain, where storage is partitioned from the host page and, on a strict
+ * privacy setting, is not there at all. The session id survives because the
+ * loader keeps it on the host page and passes it in — so the thread can be
+ * found from that instead of started over.
+ *
+ * Scoped to the widget deliberately. On the first-party channels the stored id
+ * is trustworthy, and resuming from the cookie alone would silently reopen a
+ * conversation a visitor had finished with weeks ago.
+ */
+async function resume(request: TurnRequest): Promise<TurnRequest> {
+  if (request.conversationId || request.channel !== "widget") return request;
+
+  const found = await latestConversationId(
+    request.channel,
+    request.externalUserId,
+  ).catch(() => undefined);
+
+  return found ? { ...request, conversationId: found } : request;
+}
+
+/**
  * The retrieved passages, wrapped in the instruction that makes them binding.
  *
  * The empty case carries its own instruction rather than an empty block. "No
@@ -370,19 +392,47 @@ function contextBlock(count: number, context: string): string {
 }
 
 /**
- * True when the window already ends with the message about to be appended.
+ * The conversation so far, as the model is shown it.
  *
- * The question is recorded before the window is read, so in the ordinary case
- * it does. The check exists for the case where it does not: recordMessage
- * swallows a write failure and returns null, and the question still has to
- * reach the model.
+ * Exported and pure because this is where the assistant's short-term memory
+ * either exists or does not, and because when it does not, nothing anywhere
+ * fails: the model is simply handed less than it was meant to have and says it
+ * was never told the visitor's name.
+ *
+ * Two things happen here.
+ *
+ * The trailing duplicate is dropped. The question was recorded before the
+ * window was read, so in the ordinary case the window already ends with it, and
+ * sending it again would put the visitor's words in twice. The check is a check
+ * rather than an unconditional slice because recordMessage swallows a write
+ * failure and returns null — and the question still has to reach the model.
+ *
+ * A turn that used a tool gets a sentence after it saying so. See toolNote.
  */
-function endsWith(
-  recent: readonly { role: string; content: string }[],
+export function historyMessages(
+  recent: readonly StoredMessage[],
   question: string,
-): boolean {
+): ChatMessage[] {
   const last = recent[recent.length - 1];
-  return last?.role === "user" && last.content === question;
+  const earlier =
+    last?.role === "user" && last.content === question
+      ? recent.slice(0, -1)
+      : recent;
+
+  return earlier.flatMap((message): ChatMessage[] => {
+    if (message.role === "user") {
+      return [{ role: "user", content: message.content }];
+    }
+
+    const note = toolNote(message);
+
+    return note
+      ? [
+          { role: "assistant", content: message.content },
+          { role: "system", content: note },
+        ]
+      : [{ role: "assistant", content: message.content }];
+  });
 }
 
 /** Shown to the visitor while a tool runs, so it follows their language too. */

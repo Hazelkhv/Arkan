@@ -77,6 +77,7 @@
   function render(config) {
     var side = config.position === "left" ? "left" : "right";
     var open = false;
+    var previousOverflow = "";
 
     var style = document.createElement("style");
     style.textContent = [
@@ -88,11 +89,21 @@
       ".arkan-widget-launcher:focus-visible{outline:2px solid #F7F3EC;outline-offset:2px}",
       ".arkan-widget-panel{position:fixed;bottom:20px;" + side + ":20px;z-index:2147483001;",
       "width:min(400px,calc(100vw - 32px));height:min(620px,calc(100vh - 40px));",
+      "height:min(620px,calc(100dvh - 40px));",
       "border:0;border-radius:12px;overflow:hidden;background:#F7F3EC;",
       "box-shadow:0 12px 40px rgba(21,32,28,.22);display:none}",
       ".arkan-widget-panel[data-open='true']{display:block}",
-      "@media (max-width:480px){.arkan-widget-panel{bottom:0;" + side + ":0;",
-      "width:100vw;height:100dvh;border-radius:0}}",
+      // Edge to edge below 480px. A 400px panel inset 16px on each side of a
+      // 375px screen is 343px of conversation with a drop shadow around it —
+      // the inset costs more than it earns at that width.
+      //
+      // `inset:0` rather than a bottom and a side: the panel is the whole
+      // window here, and pinning all four edges is what keeps it there when the
+      // keyboard opens. The dvh line is a fallback for browsers without the
+      // unit, which get 100vh and a panel that runs under the toolbar — the
+      // same thing they got before, rather than no height at all.
+      "@media (max-width:480px){.arkan-widget-panel{inset:0;",
+      "width:100%;height:100vh;height:100dvh;border-radius:0;box-shadow:none}}",
       // The brand guide asks for very little motion, and a launcher that
       // animates on every page load is exactly the kind of clutter it warns off.
       "@media (prefers-reduced-motion:reduce){.arkan-widget-launcher{transition:none}}",
@@ -144,6 +155,7 @@
       frame.setAttribute("data-open", "true");
       launcher.setAttribute("aria-expanded", "true");
       launcher.style.display = "none";
+      lockScroll(true);
       frame.focus();
     }
 
@@ -152,7 +164,36 @@
       frame.removeAttribute("data-open");
       launcher.setAttribute("aria-expanded", "false");
       launcher.style.display = "";
+      lockScroll(false);
       launcher.focus();
+    }
+
+    /**
+     * Hold the host page still while the panel covers it.
+     *
+     * Only where the panel is full-screen. On a phone the panel fills the
+     * window, so a swipe that the iframe does not consume scrolls the page
+     * underneath it — the visitor scrolls somebody else's site while reading a
+     * conversation, and closes the panel onto somewhere they never navigated
+     * to. Above 480px the panel is a small box beside the page and the page is
+     * still theirs to scroll.
+     *
+     * The previous value is put back rather than cleared: the host page may
+     * have its own overflow rule, and this is not ours to overwrite
+     * permanently.
+     */
+    function lockScroll(on) {
+      if (!window.matchMedia || !window.matchMedia("(max-width:480px)").matches) {
+        return;
+      }
+
+      if (on) {
+        previousOverflow = document.documentElement.style.overflow;
+        document.documentElement.style.overflow = "hidden";
+      } else {
+        document.documentElement.style.overflow = previousOverflow;
+        previousOverflow = "";
+      }
     }
   }
 

@@ -140,8 +140,14 @@ export async function loadMessages(
 
   const query = db
     .from("messages")
-    .select("id, role, content, created_at, provider")
+    .select("id, role, content, created_at, provider, tool_calls")
     .eq("conversation_id", conversationId)
+    // An assistant row with nothing in it is a turn that failed: the engine
+    // stores one so the error is attached to the conversation. It is not
+    // something anybody said. Left in, it reaches the model as an empty
+    // assistant message — which some providers refuse outright — and it renders
+    // as a blank bubble the next time the visitor loads the page.
+    .neq("content", "")
     .in("role", ["user", "assistant"])
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
@@ -158,7 +164,71 @@ export async function loadMessages(
     content: row.content as string,
     createdAt: row.created_at as string,
     provider: (row.provider as string | null) ?? null,
+    toolCalls: row.tool_calls ?? null,
   }));
+}
+
+/**
+ * What a stored turn did, in one line the model can read.
+ *
+ * A tool call is not replayed into the window as a `tool_calls` message and a
+ * matching `tool` result, and deliberately so: only the call is stored, never
+ * the result, and a provider handed an assistant message whose tool call has no
+ * answer rejects the whole request. A sentence carries the fact without the
+ * malformed shape.
+ *
+ * The fact is worth carrying because it is the one thing in a conversation that
+ * has already been acted on. "I have sent that over" does not say whose request
+ * was sent; this does, so a later turn can use the name and does not ask for
+ * details the visitor has already given.
+ */
+export function toolNote(message: StoredMessage): string | null {
+  const calls = message.toolCalls;
+  if (!Array.isArray(calls) || calls.length === 0) return null;
+
+  const notes: string[] = [];
+
+  for (const call of calls) {
+    const fn = (call as { function?: { name?: unknown; arguments?: unknown } })
+      ?.function;
+    if (!fn || typeof fn.name !== "string") continue;
+
+    if (fn.name === "capture_lead") {
+      const args = parseArgs(fn.arguments);
+      const who = [args.fullName, args.businessName].filter(Boolean).join(" of ");
+
+      notes.push(
+        who
+          ? `You recorded a consultation request for ${who}. Their details are on file; do not ask for them again.`
+          : "You recorded a consultation request on this conversation. Do not ask for those details again.",
+      );
+    } else if (fn.name === "request_human") {
+      notes.push("You passed this conversation to a colleague.");
+    }
+  }
+
+  return notes.length > 0 ? notes.join(" ") : null;
+}
+
+function parseArgs(raw: unknown): Record<string, string> {
+  const source =
+    typeof raw === "string"
+      ? (() => {
+          try {
+            return JSON.parse(raw || "{}");
+          } catch {
+            return {};
+          }
+        })()
+      : raw;
+
+  if (!source || typeof source !== "object") return {};
+
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+    if (typeof value === "string" && value.trim()) out[key] = value.trim();
+  }
+  return out;
 }
 
 export type RecordedMessage = {
@@ -249,9 +319,20 @@ export async function buildWindow(
   conversation: Conversation,
 ): Promise<{ summary: string | null; recent: StoredMessage[] }> {
   const all = await loadMessages(conversation.id);
-  const recent = all.slice(Math.max(0, all.length - KEEP_VERBATIM));
 
-  return { summary: conversation.summary, recent };
+  return { summary: conversation.summary, recent: recentWindow(all) };
+}
+
+/**
+ * The tail of a conversation that is kept word for word.
+ *
+ * Separated from the read above so the rule itself can be tested without a
+ * database. It is the rule that decides whether the assistant still knows the
+ * visitor's name, and it fails silently: nothing errors when the window is a
+ * turn too short, the assistant simply says it was never told.
+ */
+export function recentWindow(all: readonly StoredMessage[]): StoredMessage[] {
+  return all.slice(Math.max(0, all.length - KEEP_VERBATIM)) as StoredMessage[];
 }
 
 /**
@@ -276,7 +357,11 @@ export async function maybeSummarise(
     if (fold.length === 0) return;
 
     const transcript = fold
-      .map((message) => `${message.role === "user" ? "Visitor" : "Assistant"}: ${message.content}`)
+      .map((message) => {
+        const who = message.role === "user" ? "Visitor" : "Assistant";
+        const note = toolNote(message);
+        return `${who}: ${message.content}${note ? `\n[${note}]` : ""}`;
+      })
       .join("\n");
 
     const { text } = await completeChat({
@@ -288,10 +373,19 @@ export async function maybeSummarise(
           role: "system",
           content:
             "Summarise this part of a conversation between a visitor and a " +
-            "business advisory's assistant. Keep every fact about the " +
-            "visitor's business, what they asked for, what they were told, " +
-            "and any contact details they gave. Third person, under 200 " +
-            "words, no preamble.",
+            "business advisory's assistant." +
+            "\n\n" +
+            "Keep, word for word: the visitor's name if they gave one, " +
+            "their company name, any phone number or email they left, " +
+            "what their business does and what stage it is at, and " +
+            "whether a consultation request has already been recorded " +
+            "for them." +
+            "\n\n" +
+            "Those are the details a later turn needs in order not to " +
+            "ask for them a second time, so they survive the summary " +
+            "even when everything around them is cut. Then: what they " +
+            "asked for and what they were told. Third person, under " +
+            "200 words, no preamble.",
         },
         {
           role: "user",

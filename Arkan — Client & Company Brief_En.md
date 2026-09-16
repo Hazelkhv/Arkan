@@ -58,7 +58,7 @@ Arkan doesn’t just provide recommendations. The team stays alongside clients t
 ## 4. The Collaboration Process
 
 1. **Submit a Request** — The visitor completes the consultation request form.
-2. **Initial Conversation** — The Arkan team contacts them within 24 business hours. The initial call is free.
+2. **Initial Conversation** — The Arkan team contacts them within one business day. The initial call is free.
 3. **Consultation Session** — A focused session to assess the business and identify its key challenges.
 4. **Roadmap** — Arkan presents a recommended plan and potential path forward.
 

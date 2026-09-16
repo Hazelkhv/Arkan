@@ -20,7 +20,14 @@ import type { StoredMessage } from "@/lib/ai/types";
  */
 
 function user(content: string): StoredMessage {
-  return { id: content, role: "user", content, createdAt: "", provider: null };
+  return {
+    id: content,
+    role: "user",
+    content,
+    createdAt: "",
+    provider: null,
+    toolCalls: null,
+  };
 }
 
 function bot(content: string): StoredMessage {
@@ -30,6 +37,7 @@ function bot(content: string): StoredMessage {
     content,
     createdAt: "",
     provider: null,
+    toolCalls: null,
   };
 }
 
@@ -119,4 +127,26 @@ test("every system sentence exists in both languages", () => {
     // Persian, not an English string that was never translated.
     assert.match(say(key, "fa"), /[؀-ۿ]/, `${key} is not in Persian`);
   }
+});
+
+test("the first message decides too, with no history behind it", () => {
+  // The reported failure was an English answer to a Persian opener — before
+  // there was any history for a fallback to have gone wrong in.
+  assert.equal(resolveLanguage("سلام، آرکان چه کاری انجام می‌دهد؟", []), "fa");
+  assert.equal(resolveLanguage("Hello, what does Arkan do?", []), "en");
+});
+
+test("the Persian directive leaves no room for an English answer", () => {
+  const directive = languageDirective("fa");
+
+  // Answering in Persian "and also in English" is the half-compliance a
+  // model reaches for when the source material it is quoting is English.
+  assert.match(directive, /Do not answer in English/);
+  assert.match(directive, /do not offer an English translation/i);
+  // The site's material is English; the answer to a Persian question is not.
+  assert.match(directive, /natural, professional Persian/);
+});
+
+test("the firm's name keeps its spelling in Persian", () => {
+  assert.match(languageDirective("fa"), /آرکان/);
 });

@@ -65,9 +65,10 @@ export default async function ConsultantPage() {
           channel="web"
           welcome={settings?.welcomeMessage ?? null}
           starters={settings?.quickReplies?.length ? [...settings.quickReplies] : undefined}
-          // The heading above has already said what the assistant is, and a
-          // visitor who navigated here came for the composer, not for an
-          // introduction. The launcher and the widget are the ones that need it.
+          // The heading above has already said what the assistant works from,
+          // so the panel does not also need to offer a browsable list of
+          // service areas. The composer and the example questions are there
+          // either way — this has never governed those.
           sequenced={false}
         />
       ) : (
