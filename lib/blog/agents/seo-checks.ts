@@ -95,6 +95,28 @@ export function clampToLength(text: string, max: number): string {
     .trim();
 }
 
+/**
+ * H1 گمشده را برمی‌گرداند.
+ *
+ * نرمال‌سازی است نه اعتبارسنجی، مثل slugify و clampToLength بالا. نویسنده گاهی
+ * در بازنویسی، خطِ `# عنوان` را می‌اندازد — یک بار همین اتفاق مقاله‌ای با امتیاز
+ * ۸۸ و تأیید ویراستار را پشت چک مسدودکننده‌ی `single-h1` نگه داشت. تیتر نداشتن،
+ * چیزی نیست که قضاوت لازم داشته باشد: عنوانِ بریف از قبل معلوم است، پس به‌جای
+ * شکست، همان گذاشته می‌شود.
+ *
+ * فقط حالتِ «هیچ H1 نیست» تعمیر می‌شود. دو تا H1، تعمیر ندارد: کد نمی‌داند کدام
+ * عنوان است و کدام باید H2 شود، و حدس زدنش ساختار مقاله را خراب می‌کند — آن یکی
+ * درست است که به دست انسان برسد.
+ */
+export function ensureH1(markdown: string, fallbackTitle: string): string {
+  if (extractHeadings(markdown, 1).length > 0) return markdown;
+
+  const title = fallbackTitle.replace(/\s+/g, " ").trim().replace(/^#+\s*/, "").trim();
+  if (!title) return markdown;
+
+  return `# ${title}\n\n${markdown.replace(/^\s+/, "")}`;
+}
+
 function includesKeyword(haystack: string, keyword: string): boolean {
   return haystack.toLowerCase().includes(keyword.toLowerCase().trim());
 }

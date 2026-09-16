@@ -7,6 +7,7 @@ import { pickBestIdea } from "@/lib/blog/agents/idea-scout";
 import { shouldAutoPublish, APPROVE_THRESHOLD } from "@/lib/blog/agents/orchestrator";
 import {
   clampToLength,
+  ensureH1,
   extractTitle,
   introText,
   runSeoChecks,
@@ -188,6 +189,41 @@ test("meta lengths are bounded on both sides", () => {
 
 test("the brand's no-exclamation-marks rule is enforced by code, not by the model", () => {
   assert.equal(check("no-exclamation", { ...CHECK_INPUT, contentMd: `${ARTICLE}\n\nAct now!` }).pass, false);
+});
+
+test("a draft that lost its H1 gets the brief's title back", () => {
+  const draft = "You have built a successful business.\n\n## Are you spreading yourself thin?\n\nYes.";
+  const fixed = ensureH1(draft, "Find Your Profitable Niche");
+
+  assert.equal(extractTitle(fixed), "Find Your Profitable Niche");
+  assert.ok(fixed.endsWith(draft), "the repair only prepends, it never rewrites the body");
+  assert.deepEqual(
+    runSeoChecks({ ...CHECK_INPUT, contentMd: fixed }).find((check) => check.id === "single-h1")
+      ?.pass,
+    true,
+    "the blocking check the repair exists for now passes",
+  );
+});
+
+test("an article that already has an H1 is left exactly as it was", () => {
+  const draft = "# The writer's own title\n\nBody.";
+  assert.equal(ensureH1(draft, "The brief's title"), draft);
+
+  const twoH1s = "# One\n\n# Two\n\nBody.";
+  assert.equal(
+    ensureH1(twoH1s, "The brief's title"),
+    twoH1s,
+    "two H1s are a human decision, not a repair",
+  );
+});
+
+test("the restored H1 is a single clean heading line", () => {
+  assert.equal(
+    ensureH1("Body.", "  # Find   Your\nNiche  "),
+    "# Find Your Niche\n\nBody.",
+    "a title arriving with its own hash or newlines still produces one H1",
+  );
+  assert.equal(ensureH1("Body.", "   "), "Body.", "with no title to use, nothing is invented");
 });
 
 /* ── حافظه‌ی خودبهبودی ──────────────────────────────────────────────────── */

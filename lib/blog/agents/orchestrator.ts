@@ -7,7 +7,7 @@ import { runEditor } from "@/lib/blog/agents/editor";
 import { runSeo } from "@/lib/blog/agents/seo";
 import { runCritic } from "@/lib/blog/agents/critic";
 import { recordLessons } from "@/lib/blog/agents/lessons";
-import { extractTitle, wordCount } from "@/lib/blog/agents/seo-checks";
+import { ensureH1, extractTitle, wordCount } from "@/lib/blog/agents/seo-checks";
 import { getStore } from "@/lib/blog/store";
 import type {
   BlogStore,
@@ -301,6 +301,19 @@ export async function runPipeline(options: {
       reports.push(report);
     }
 
+    /* ── نرمال‌سازی قبل از سئو ───────────────────────────────────────────── */
+    // ترتیب مهم است: چک‌های قطعی داخل گام سئو اجرا می‌شوند، پس تعمیر باید قبل از
+    // آن باشد. بعدش، چک همچنان FAIL می‌ماند و مقاله بی‌دلیل پیش انسان می‌ایستد.
+    const titled = ensureH1(draft, brief.title);
+    if (titled !== draft) {
+      draft = titled;
+      await log.note(
+        "orchestrator",
+        "Restored the missing H1",
+        `The final draft had no H1, so the brief's title was put back: "${brief.title}"`,
+      );
+    }
+
     /* ── ۶. سئو ─────────────────────────────────────────────────────────── */
     const seoOutcome = await log.step(
       "seo",
@@ -349,26 +362,40 @@ export async function runPipeline(options: {
 
     /* ── ۸. منتقد ───────────────────────────────────────────────────────── */
     // نقد بعد از انتشار می‌آید: نتیجه‌ی نهایی، بخشی از چیزی است که نقد می‌شود.
-    const critique = await log.step(
-      "critic",
-      "Extracting lessons for the next run",
-      (onTrace) =>
-        runCritic({
-          briefTitle: brief.title,
-          editorReports: reports,
-          revisionRounds: revisions,
-          seoFailures: seoOutcome.failed,
-          finalArticle: draft,
-          published: autoPublish,
-          onTrace,
-        }),
-      (result) =>
-        result.lessons.length === 0
-          ? "No new lessons — the run went cleanly"
-          : result.lessons.map((lesson) => `${lesson.agent}: ${lesson.lesson}`).join(" · "),
-    );
+    //
+    // و تنها گامی است که شکستش اجرا را شکست‌خورده نمی‌کند. قاعده‌ی «شکست پر سر و
+    // صدا» (پایین، در catch) برای ایجنت‌هایی است که خروجی‌شان خوراک ایجنت بعدی است؛
+    // اگر پژوهشگر بیفتد، نویسنده با دست خالی می‌نویسد. منتقد چیزی جلوتر ندارد: مقاله
+    // همین حالا منتشر شده و درس‌ها فقط به اجراهای آینده می‌رسند. اجرایی که هفت گام موفق و یک
+    // مقاله‌ی منتشرشده دارد را error نشان دادن، هم دروغ است و هم خطاهای واقعی را در فهرست
+    // اجراها گم می‌کند. خود گام در تایم‌لاین error می‌ماند — از دست رفتن درس‌ها پنهان نمی‌شود.
+    try {
+      const critique = await log.step(
+        "critic",
+        "Extracting lessons for the next run",
+        (onTrace) =>
+          runCritic({
+            briefTitle: brief.title,
+            editorReports: reports,
+            revisionRounds: revisions,
+            seoFailures: seoOutcome.failed,
+            finalArticle: draft,
+            published: autoPublish,
+            onTrace,
+          }),
+        (result) =>
+          result.lessons.length === 0
+            ? "No new lessons — the run went cleanly"
+            : result.lessons.map((lesson) => `${lesson.agent}: ${lesson.lesson}`).join(" · "),
+      );
 
-    await recordLessons(critique.lessons, "critic");
+      await recordLessons(critique.lessons, "critic");
+    } catch (error) {
+      console.error(
+        "[blog] the critic failed; the run stands and no lessons were recorded:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
 
     const finished = await store.updateRun(run.id, {
       status: "done",

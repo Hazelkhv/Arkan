@@ -37,6 +37,12 @@ A good lesson:
 - is specific enough to change the output ("open with the reader's situation in
   the first two sentences, never with a definition"), not a platitude ("write
   better introductions")
+- fits in 300 characters — about two sentences. A lesson that needs more room
+  than that is a note about this one article, not a durable instruction
+
+Hard limits, enforced on your answer: at most 3 lessons, and each lesson
+string between 20 and 300 characters. A longer lesson is rejected outright, and
+the run loses every lesson you wrote — so cut it down before you send it.
 
 Return at most 3 lessons — fewer is better. If this run went well and you have
 nothing durable to say, return an empty array. Padding the list pollutes the
