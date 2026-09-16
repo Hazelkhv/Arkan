@@ -17,8 +17,17 @@ import type {
  * else's conversation — including the contact details they gave the lead tool.
  */
 
-/** Turns kept verbatim at the end of the window. */
-const KEEP_VERBATIM = 8;
+/**
+ * Turns kept verbatim at the end of the window.
+ *
+ * Twenty, not eight. Eight is four exchanges, and four exchanges is roughly how
+ * long it takes to get past "what do you do" to "my name is —" — so the detail
+ * that makes the conversation feel like a conversation was the first thing to
+ * fall out of it. Twenty messages of chat is a few thousand tokens against a
+ * context window measured in hundreds of thousands, and anything older than
+ * that is not dropped but summarised, below.
+ */
+const KEEP_VERBATIM = 20;
 
 /** Unsummarised turns tolerated before the older ones are folded into prose. */
 const SUMMARISE_AFTER = 20;
